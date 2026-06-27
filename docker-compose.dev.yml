@@ -1,0 +1,90 @@
+# Frontend Development - Backend hot reloads from local source
+#
+# Usage:
+#   1. docker compose -f docker-compose.dev.yml up -d --build
+#   2. cd web && bun install && bun run dev
+#   3. Open http://localhost:3001 (Rsbuild dev server, API auto-proxied to :3000)
+#
+# Go code changes:
+#   Air rebuilds and restarts new-api automatically inside the container.
+#
+# PostgreSQL:
+#   Host: 127.0.0.1
+#   Port: ${DEV_POSTGRES_HOST_PORT:-5432}
+#   Database: new-api
+#   User: root
+#   Password: ${DEV_POSTGRES_PASSWORD:-new-api-dev-password}
+#
+# Stop:
+#   docker compose -f docker-compose.dev.yml down
+#
+# Reset data:
+#   docker compose -f docker-compose.dev.yml down -v
+
+services:
+  new-api:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: new-api-dev:local
+    container_name: new-api-dev
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - dev_data:/data
+      - dev_go_mod:/go/pkg/mod
+      - dev_go_build_cache:/root/.cache/go-build
+    environment:
+      - SQL_DSN=${SQL_DSN:-postgresql://root:${DEV_POSTGRES_PASSWORD:-new-api-dev-password}@postgres:5432/new-api}
+      - REDIS_CONN_STRING=${REDIS_CONN_STRING:-redis://redis}
+      - SQLITE_PATH=/data/one-api.db?_busy_timeout=30000
+      - TZ=Asia/Shanghai
+      - BATCH_UPDATE_ENABLED=true
+    depends_on:
+      redis:
+        condition: service_started
+      # 使用远程 PostgreSQL 时，把下面 postgres 依赖注释掉，避免等待本地库健康检查。
+      # 只调试后端时推荐启动命令：docker compose -f docker-compose.dev.yml up -d redis new-api
+#      postgres:
+#        condition: service_healthy
+    networks:
+      - dev-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: new-api-dev-redis
+    restart: unless-stopped
+    networks:
+      - dev-network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: new-api-dev-pg
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: ${DEV_POSTGRES_PASSWORD:-new-api-dev-password}
+      POSTGRES_DB: new-api
+    volumes:
+      - dev_pg_data:/var/lib/postgresql/data
+    ports:
+      - "${DEV_POSTGRES_HOST_PORT:-5432}:5432"
+    networks:
+      - dev-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d new-api"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  dev_data:
+  dev_pg_data:
+  dev_go_mod:
+  dev_go_build_cache:
+
+networks:
+  dev-network:
+    driver: bridge

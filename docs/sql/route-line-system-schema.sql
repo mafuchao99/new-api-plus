@@ -1,0 +1,9 @@
+-- 线路系统 SQL 已按数据库类型拆分。
+--
+-- 请只执行与你当前数据库匹配的文件：
+--   MySQL      : docs/sql/route-line-system-schema-mysql.sql
+--   PostgreSQL : docs/sql/route-line-system-schema-postgresql.sql
+--   SQLite     : docs/sql/route-line-system-schema-sqlite.sql
+--
+-- 每个拆分文件前半部分是建表 SQL，后半部分是后续追加字段迁移 SQL。
+-- 你当前使用 PostgreSQL 时，直接复制 PostgreSQL 文件即可。

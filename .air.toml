@@ -1,0 +1,31 @@
+root = "."
+tmp_dir = "/tmp/air-new-api"
+
+[build]
+cmd = "mkdir -p web/default/dist web/classic/dist && printf '%s' '<!doctype html><html><head><title>dev</title></head><body>use frontend dev server</body></html>' > web/default/dist/index.html && cp web/default/dist/index.html web/classic/dist/index.html && go build -buildvcs=false -ldflags \"-X github.com/QuantumNous/new-api/common.Version=dev\" -o /tmp/air-new-api/new-api ."
+bin = "/tmp/air-new-api/new-api"
+delay = 1000
+exclude_dir = [
+  ".git",
+  ".gocache",
+  "docs",
+  "node_modules",
+  "tmp",
+  "vendor",
+  "web/classic/dist",
+  "web/classic/node_modules",
+  "web/node_modules",
+  "web/default/dist",
+  "web/default/node_modules"
+]
+exclude_regex = ["_test\\.go"]
+include_ext = ["go", "html", "mod", "sum", "toml", "tpl", "tmpl", "yaml", "yml"]
+kill_delay = "500ms"
+send_interrupt = true
+stop_on_error = true
+
+[log]
+time = true
+
+[misc]
+clean_on_exit = true

@@ -1,0 +1,26 @@
+# Backend development image with hot reload.
+# Frontend assets are stubbed because the default frontend runs from Rsbuild.
+
+FROM golang:1.25.1-alpine
+
+ENV GO111MODULE=on \
+    CGO_ENABLED=0 \
+    GOEXPERIMENT=greenteagc
+
+RUN apk add --no-cache ca-certificates git tzdata \
+    && update-ca-certificates
+
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download \
+    && go install github.com/air-verse/air@latest
+
+COPY . .
+RUN mkdir -p web/default/dist web/classic/dist \
+    && printf '%s' '<!doctype html><html><head><title>dev</title></head><body>use frontend dev server</body></html>' > web/default/dist/index.html \
+    && cp web/default/dist/index.html web/classic/dist/index.html
+
+EXPOSE 3000
+
+CMD ["air", "-c", ".air.toml"]
