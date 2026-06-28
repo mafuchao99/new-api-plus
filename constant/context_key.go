@@ -38,6 +38,13 @@ const (
 	ContextKeyChannelMultiKeyIndex     ContextKey = "channel_multi_key_index"
 	ContextKeyChannelKey               ContextKey = "channel_key"
 
+	/* route line related keys */
+	ContextKeyRouteLineId     ContextKey = "route_line_id"
+	ContextKeyRouteLineName   ContextKey = "route_line_name"
+	ContextKeyRouteSlotId     ContextKey = "route_slot_id"
+	ContextKeyRouteSlotName   ContextKey = "route_slot_name"
+	ContextKeyRouteLineSource ContextKey = "route_line_source"
+
 	ContextKeyAutoGroup           ContextKey = "auto_group"
 	ContextKeyAutoGroupIndex      ContextKey = "auto_group_index"
 	ContextKeyAutoGroupRetryIndex ContextKey = "auto_group_retry_index"

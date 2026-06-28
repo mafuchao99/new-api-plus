@@ -216,6 +216,42 @@ function BillingBreakdown(props: {
     })
   }
 
+  if (other.route_line_name) {
+    rows.push({
+      label: t('Route Line'),
+      value: other.route_line_name,
+    })
+  }
+
+  if (other.route_slot_name) {
+    rows.push({
+      label: t('Route Slot'),
+      value: other.route_slot_name,
+    })
+  }
+
+  if (
+    other.route_line_billing_mode === 'ratio' &&
+    other.route_line_ratio != null &&
+    Number.isFinite(other.route_line_ratio)
+  ) {
+    rows.push({
+      label: t('Route Line Ratio'),
+      value: `${formatRatio(other.route_line_ratio)}x`,
+    })
+  }
+
+  if (
+    other.route_line_billing_mode === 'per_request' &&
+    other.route_line_price != null &&
+    Number.isFinite(other.route_line_price)
+  ) {
+    rows.push({
+      label: t('Route Line Price'),
+      value: fmtPrice(other.route_line_price),
+    })
+  }
+
   if (!isTieredExpr && isClaude && hasAnyCacheTokens(other)) {
     if (other.cache_ratio != null && other.cache_ratio !== 1) {
       rows.push({

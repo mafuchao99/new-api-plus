@@ -9,7 +9,11 @@ import (
 
 func seedTokenUsageStatUser(t *testing.T, id int, username string) {
 	t.Helper()
-	require.NoError(t, DB.Create(&User{Id: id, Username: username}).Error)
+	require.NoError(t, DB.Create(&User{
+		Id:       id,
+		Username: username,
+		AffCode:  fmt.Sprintf("token-usage-aff-%d", id),
+	}).Error)
 }
 
 func seedTokenUsageStatToken(t *testing.T, id int, userId int, name string, group string) {

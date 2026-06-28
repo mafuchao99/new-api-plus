@@ -77,6 +77,7 @@ func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, m
 	appendRequestConversionChain(relayInfo, other)
 	appendFinalRequestFormat(relayInfo, other)
 	appendBillingInfo(relayInfo, other)
+	appendRouteLineBillingInfo(relayInfo, other)
 	appendParamOverrideInfo(relayInfo, other)
 	appendStreamStatus(relayInfo, other)
 	return other
@@ -167,6 +168,45 @@ func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interf
 		}
 		// Wallet quota is not deducted when billed from subscription.
 		other["wallet_quota_deducted"] = 0
+	}
+}
+
+func appendRouteLineBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interface{}) {
+	if relayInfo == nil || other == nil {
+		return
+	}
+	appendRouteLinePriceData(relayInfo.PriceData, other)
+}
+
+func appendRouteLinePriceData(priceData types.PriceData, other map[string]interface{}) {
+	if other == nil || priceData.RouteLineId <= 0 {
+		return
+	}
+
+	other["route_line_id"] = priceData.RouteLineId
+	if priceData.RouteLineName != "" {
+		other["route_line_name"] = priceData.RouteLineName
+	}
+	if priceData.RouteSlotId > 0 {
+		other["route_slot_id"] = priceData.RouteSlotId
+	}
+	if priceData.RouteSlotName != "" {
+		other["route_slot_name"] = priceData.RouteSlotName
+	}
+	if priceData.RouteLineSource != "" {
+		other["route_line_source"] = priceData.RouteLineSource
+	}
+	if priceData.RouteLineBillingMode != "" {
+		other["route_line_billing_mode"] = priceData.RouteLineBillingMode
+	}
+	if priceData.RouteLineModelRule != "" {
+		other["route_line_model_rule"] = priceData.RouteLineModelRule
+	}
+	if priceData.RouteLineBillingMode == "ratio" {
+		other["route_line_ratio"] = priceData.RouteLineRatio
+	}
+	if priceData.RouteLineBillingMode == "per_request" {
+		other["route_line_price"] = priceData.RouteLinePrice
 	}
 }
 
@@ -261,6 +301,7 @@ func GenerateMjOtherInfo(relayInfo *relaycommon.RelayInfo, priceData types.Price
 	if priceData.GroupRatioInfo.HasSpecialRatio {
 		other["user_group_ratio"] = priceData.GroupRatioInfo.GroupSpecialRatio
 	}
+	appendRouteLinePriceData(priceData, other)
 	appendRequestPath(nil, relayInfo, other)
 	return other
 }

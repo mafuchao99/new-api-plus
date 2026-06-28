@@ -2,8 +2,11 @@ package model
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 
+	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -12,6 +15,9 @@ const (
 	RouteLineBillingModeRatio      = "ratio"
 	RouteLineBillingModePerRequest = "per_request"
 	RouteLineBillingModeExpression = "expression"
+
+	RouteLineSourceDefault = "default"
+	RouteLineSourceCustom  = "custom"
 )
 
 type RouteLine struct {
@@ -76,6 +82,12 @@ type ChannelRouteBinding struct {
 	Channel     *Channel   `json:"channel,omitempty" gorm:"foreignKey:ChannelId"`
 }
 
+type EffectiveRouteLineSelection struct {
+	Slot   RouteSlot
+	Line   RouteLine
+	Source string
+}
+
 func ListRouteLines() ([]RouteLine, error) {
 	lines := make([]RouteLine, 0)
 	err := DB.
@@ -99,6 +111,176 @@ func ListRouteSlots() ([]RouteSlot, error) {
 	slots := make([]RouteSlot, 0)
 	err := DB.Order("sort ASC").Order("id ASC").Find(&slots).Error
 	return slots, err
+}
+
+func ListEffectiveRouteLineSelections(tokenId int) ([]EffectiveRouteLineSelection, error) {
+	slots := make([]RouteSlot, 0)
+	if err := DB.
+		Where("enabled = ?", true).
+		Order("sort ASC").
+		Order("id ASC").
+		Find(&slots).Error; err != nil {
+		return nil, err
+	}
+	if len(slots) == 0 {
+		return []EffectiveRouteLineSelection{}, nil
+	}
+
+	overrides := make([]ApiKeyRouteOverride, 0)
+	if tokenId > 0 {
+		if err := DB.Where("token_id = ?", tokenId).Find(&overrides).Error; err != nil {
+			return nil, err
+		}
+	}
+
+	overrideBySlot := make(map[int]ApiKeyRouteOverride, len(overrides))
+	for _, override := range overrides {
+		overrideBySlot[override.RouteSlotId] = override
+	}
+
+	lineIds := make([]int, 0, len(slots))
+	lineIdBySlot := make(map[int]int, len(slots))
+	sourceBySlot := make(map[int]string, len(slots))
+	seenLineIds := make(map[int]struct{}, len(slots))
+	for _, slot := range slots {
+		lineId := 0
+		source := RouteLineSourceDefault
+		if override, ok := overrideBySlot[slot.Id]; ok {
+			// 核心规则：API key 对这个槽位有覆盖时，只使用覆盖线路；
+			// 覆盖线路无效时也不自动回退默认线路，避免用户明确选择被静默改写。
+			lineId = override.RouteLineId
+			source = RouteLineSourceCustom
+		} else if slot.DefaultRouteLineId != nil {
+			// 只有这个槽位没有 API key 覆盖时，才读取槽位当前默认线路。
+			lineId = *slot.DefaultRouteLineId
+		}
+		if lineId <= 0 {
+			continue
+		}
+		lineIdBySlot[slot.Id] = lineId
+		sourceBySlot[slot.Id] = source
+		if _, ok := seenLineIds[lineId]; ok {
+			continue
+		}
+		seenLineIds[lineId] = struct{}{}
+		lineIds = append(lineIds, lineId)
+	}
+	if len(lineIds) == 0 {
+		return []EffectiveRouteLineSelection{}, nil
+	}
+
+	lines := make([]RouteLine, 0, len(lineIds))
+	if err := DB.
+		Preload("ModelPrices", "enabled = ?", true).
+		Where("id IN ?", lineIds).
+		Find(&lines).Error; err != nil {
+		return nil, err
+	}
+	lineById := make(map[int]RouteLine, len(lines))
+	for _, line := range lines {
+		lineById[line.Id] = line
+	}
+
+	selections := make([]EffectiveRouteLineSelection, 0, len(slots))
+	for _, slot := range slots {
+		lineId := lineIdBySlot[slot.Id]
+		if lineId <= 0 {
+			continue
+		}
+		line, ok := lineById[lineId]
+		if !ok {
+			if sourceBySlot[slot.Id] == RouteLineSourceCustom {
+				slotId := slot.Id
+				selections = append(selections, EffectiveRouteLineSelection{
+					Slot: slot,
+					Line: RouteLine{
+						Id:      lineId,
+						SlotId:  &slotId,
+						Name:    fmt.Sprintf("已删除线路#%d", lineId),
+						Enabled: false,
+					},
+					Source: RouteLineSourceCustom,
+				})
+			}
+			continue
+		}
+		if line.SlotId == nil || *line.SlotId != slot.Id {
+			continue
+		}
+		if !line.Enabled && sourceBySlot[slot.Id] != RouteLineSourceCustom {
+			continue
+		}
+		selections = append(selections, EffectiveRouteLineSelection{
+			Slot:   slot,
+			Line:   line,
+			Source: sourceBySlot[slot.Id],
+		})
+	}
+	return selections, nil
+}
+
+func ListEnabledRouteLinesBySlotIds(slotIds []int) ([]RouteLine, error) {
+	lines := make([]RouteLine, 0)
+	if len(slotIds) == 0 {
+		return lines, nil
+	}
+	err := DB.
+		Preload("ModelPrices", "enabled = ?", true).
+		Where("slot_id IN ? AND enabled = ?", slotIds, true).
+		Order("sort ASC").
+		Order("id ASC").
+		Find(&lines).Error
+	return lines, err
+}
+
+func ListEnabledRouteLineBindings(routeLineIds []int) ([]ChannelRouteBinding, error) {
+	bindings := make([]ChannelRouteBinding, 0)
+	if len(routeLineIds) == 0 {
+		return bindings, nil
+	}
+	err := DB.
+		Preload("Channel").
+		Where("route_line_id IN ? AND enabled = ?", routeLineIds, true).
+		Order("route_line_id ASC").
+		Order("priority DESC").
+		Order("id ASC").
+		Find(&bindings).Error
+	return bindings, err
+}
+
+func GetEnabledRouteLineModelPrice(routeLineId int, modelName string) (*RouteLineModelPrice, error) {
+	modelName = strings.TrimSpace(modelName)
+	if routeLineId <= 0 || modelName == "" {
+		return nil, nil
+	}
+
+	price := &RouteLineModelPrice{}
+	err := DB.
+		Where("route_line_id = ? AND model_name = ? AND enabled = ?", routeLineId, modelName, true).
+		First(price).Error
+	if err == nil {
+		return price, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, err
+	}
+
+	formattedModelName := ratio_setting.FormatMatchingModelName(modelName)
+	if formattedModelName == "" || formattedModelName == modelName {
+		return nil, nil
+	}
+
+	price = &RouteLineModelPrice{}
+	err = DB.
+		Where("route_line_id = ? AND model_name = ? AND enabled = ?", routeLineId, formattedModelName, true).
+		First(price).Error
+	if err == nil {
+		return price, nil
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+	return nil, err
 }
 
 func CreateRouteSlot(slot *RouteSlot) error {

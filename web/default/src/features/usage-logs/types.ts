@@ -149,6 +149,15 @@ export interface LogOtherData {
   model_price?: number
   group_ratio?: number
   user_group_ratio?: number
+  route_line_id?: number
+  route_line_name?: string
+  route_slot_id?: number
+  route_slot_name?: string
+  route_line_source?: string
+  route_line_billing_mode?: string
+  route_line_ratio?: number
+  route_line_price?: number
+  route_line_model_rule?: string
   cache_ratio?: number
   cache_creation_ratio?: number
   cache_creation_ratio_5m?: number

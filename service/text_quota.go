@@ -112,8 +112,11 @@ func usageLogUserContentFromRequest(request dto.Request) string {
 				continue
 			}
 			for _, media := range message.ParseContent() {
-				if media.Type == dto.ContentTypeText && strings.TrimSpace(media.Text) != "" {
-					parts = append(parts, strings.TrimSpace(media.Text))
+				if media.Type != dto.ContentTypeText {
+					continue
+				}
+				if text := cleanUsageLogUserText(media.Text); text != "" {
+					parts = append(parts, text)
 				}
 			}
 		}
@@ -123,8 +126,8 @@ func usageLogUserContentFromRequest(request dto.Request) string {
 		parts = appendJSONTextParts(parts, req.Input)
 	case *dto.EmbeddingRequest:
 		for _, input := range req.ParseInput() {
-			if strings.TrimSpace(input) != "" {
-				parts = append(parts, strings.TrimSpace(input))
+			if text := cleanUsageLogUserText(input); text != "" {
+				parts = append(parts, text)
 			}
 		}
 	case *dto.ImageRequest:

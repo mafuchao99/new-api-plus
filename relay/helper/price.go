@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
@@ -34,6 +35,110 @@ func modelPriceNotConfiguredError(modelName string, userId int) error {
 
 // https://docs.claude.com/en/docs/build-with-claude/prompt-caching#1-hour-cache-duration
 const claudeCacheCreation1hMultiplier = 6 / 3.75
+
+const (
+	routeLineModelRuleLineDefault = "line_default"
+	routeLineModelRuleModelPrice  = "model_price"
+)
+
+type routeLineBillingConfig struct {
+	RouteLineId   int
+	RouteLineName string
+	RouteSlotId   int
+	RouteSlotName string
+	Source        string
+	BillingMode   string
+	Ratio         float64
+	Price         float64
+	Expression    string
+	ModelRule     string
+}
+
+func resolveRouteLineBillingConfig(c *gin.Context, modelName string) (*routeLineBillingConfig, error) {
+	routeLineId := common.GetContextKeyInt(c, constant.ContextKeyRouteLineId)
+	if routeLineId <= 0 {
+		return nil, nil
+	}
+
+	line, err := model.GetRouteLineById(routeLineId)
+	if err != nil {
+		return nil, fmt.Errorf("获取线路 #%d 失败: %w", routeLineId, err)
+	}
+	if !line.Enabled {
+		return nil, fmt.Errorf("线路 %s 已禁用", line.Name)
+	}
+
+	defaultRatio := 1.0
+	if line.DefaultRatio != nil {
+		defaultRatio = *line.DefaultRatio
+	}
+	if defaultRatio < 0 {
+		return nil, fmt.Errorf("线路 %s 默认倍率不能小于 0", line.Name)
+	}
+
+	cfg := &routeLineBillingConfig{
+		RouteLineId:   line.Id,
+		RouteLineName: line.Name,
+		RouteSlotId:   common.GetContextKeyInt(c, constant.ContextKeyRouteSlotId),
+		RouteSlotName: common.GetContextKeyString(c, constant.ContextKeyRouteSlotName),
+		Source:        common.GetContextKeyString(c, constant.ContextKeyRouteLineSource),
+		BillingMode:   model.RouteLineBillingModeRatio,
+		Ratio:         defaultRatio,
+		ModelRule:     routeLineModelRuleLineDefault,
+	}
+
+	price, err := model.GetEnabledRouteLineModelPrice(line.Id, modelName)
+	if err != nil {
+		return nil, err
+	}
+	if price == nil {
+		return cfg, nil
+	}
+
+	cfg.BillingMode = strings.TrimSpace(price.BillingMode)
+	cfg.ModelRule = routeLineModelRuleModelPrice
+	switch cfg.BillingMode {
+	case model.RouteLineBillingModeRatio:
+		if price.Ratio == nil || *price.Ratio < 0 {
+			return nil, fmt.Errorf("线路 %s 的模型 %s 倍率未正确配置", line.Name, price.ModelName)
+		}
+		cfg.Ratio = *price.Ratio
+	case model.RouteLineBillingModePerRequest:
+		if price.PerRequestPrice == nil || *price.PerRequestPrice < 0 {
+			return nil, fmt.Errorf("线路 %s 的模型 %s 按次价格未正确配置", line.Name, price.ModelName)
+		}
+		cfg.Ratio = 0
+		cfg.Price = *price.PerRequestPrice
+	case model.RouteLineBillingModeExpression:
+		if price.PriceExpression == nil || strings.TrimSpace(*price.PriceExpression) == "" {
+			return nil, fmt.Errorf("线路 %s 的模型 %s 计费表达式未正确配置", line.Name, price.ModelName)
+		}
+		cfg.Ratio = 0
+		cfg.Expression = strings.TrimSpace(*price.PriceExpression)
+	default:
+		return nil, fmt.Errorf("线路 %s 的模型 %s 计费模式不支持: %s", line.Name, price.ModelName, cfg.BillingMode)
+	}
+	return cfg, nil
+}
+
+func applyRouteLineBillingConfig(priceData *types.PriceData, cfg *routeLineBillingConfig) {
+	if priceData == nil || cfg == nil {
+		return
+	}
+	priceData.RouteLineId = cfg.RouteLineId
+	priceData.RouteLineName = cfg.RouteLineName
+	priceData.RouteSlotId = cfg.RouteSlotId
+	priceData.RouteSlotName = cfg.RouteSlotName
+	priceData.RouteLineSource = cfg.Source
+	priceData.RouteLineBillingMode = cfg.BillingMode
+	priceData.RouteLineModelRule = cfg.ModelRule
+	if cfg.BillingMode == model.RouteLineBillingModeRatio {
+		priceData.RouteLineRatio = cfg.Ratio
+	}
+	if cfg.BillingMode == model.RouteLineBillingModePerRequest {
+		priceData.RouteLinePrice = cfg.Price
+	}
+}
 
 // HandleGroupRatio checks for "auto_group" in the context and updates the group ratio and relayInfo.UsingGroup if present
 func HandleGroupRatio(ctx *gin.Context, relayInfo *relaycommon.RelayInfo) types.GroupRatioInfo {
@@ -68,10 +173,41 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	modelPrice, usePrice := ratio_setting.GetModelPrice(info.OriginModelName, false)
 
 	groupRatioInfo := HandleGroupRatio(c, info)
+	routeLineBilling, err := resolveRouteLineBillingConfig(c, info.OriginModelName)
+	if err != nil {
+		return types.PriceData{}, err
+	}
 
+	if routeLineBilling != nil && routeLineBilling.BillingMode == model.RouteLineBillingModeExpression {
+		return modelPriceHelperTiered(c, info, promptTokens, meta, groupRatioInfo, routeLineBilling, routeLineBilling.Expression)
+	}
 	// Check if this model uses tiered_expr billing
 	if billing_setting.GetBillingMode(info.OriginModelName) == billing_setting.BillingModeTieredExpr {
-		return modelPriceHelperTiered(c, info, promptTokens, meta, groupRatioInfo)
+		return modelPriceHelperTiered(c, info, promptTokens, meta, groupRatioInfo, routeLineBilling, "")
+	}
+
+	if routeLineBilling != nil && routeLineBilling.BillingMode == model.RouteLineBillingModePerRequest {
+		preConsumedQuota := int(routeLineBilling.Price * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+		freeModel := false
+		if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
+			if groupRatioInfo.GroupRatio == 0 || routeLineBilling.Price == 0 {
+				preConsumedQuota = 0
+				freeModel = true
+			}
+		}
+		priceData := types.PriceData{
+			FreeModel:         freeModel,
+			ModelPrice:        routeLineBilling.Price,
+			GroupRatioInfo:    groupRatioInfo,
+			UsePrice:          true,
+			QuotaToPreConsume: preConsumedQuota,
+		}
+		applyRouteLineBillingConfig(&priceData, routeLineBilling)
+		if common.DebugEnabled {
+			logger.LogDebug(c, "model_price_helper result: %s", priceData.ToSetting())
+		}
+		info.PriceData = priceData
+		return priceData, nil
 	}
 
 	var preConsumedQuota int
@@ -85,6 +221,10 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	var audioRatio float64
 	var audioCompletionRatio float64
 	var freeModel bool
+	routeRatio := 1.0
+	if routeLineBilling != nil && routeLineBilling.BillingMode == model.RouteLineBillingModeRatio {
+		routeRatio = routeLineBilling.Ratio
+	}
 	if !usePrice {
 		preConsumedTokens := common.Max(promptTokens, common.PreConsumedQuota)
 		if meta.MaxTokens != 0 {
@@ -102,6 +242,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 				return types.PriceData{}, modelPriceNotConfiguredError(matchName, info.UserId)
 			}
 		}
+		modelRatio = modelRatio * routeRatio
 		completionRatio = ratio_setting.GetCompletionRatio(info.OriginModelName)
 		cacheRatio, _ = ratio_setting.GetCacheRatio(info.OriginModelName)
 		cacheCreationRatio, _ = ratio_setting.GetCreateCacheRatio(info.OriginModelName)
@@ -117,6 +258,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		if meta.ImagePriceRatio != 0 {
 			modelPrice = modelPrice * meta.ImagePriceRatio
 		}
+		modelPrice = modelPrice * routeRatio
 		preConsumedQuota = int(modelPrice * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
 	}
 
@@ -155,6 +297,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		CacheCreation1hRatio: cacheCreationRatio1h,
 		QuotaToPreConsume:    preConsumedQuota,
 	}
+	applyRouteLineBillingConfig(&priceData, routeLineBilling)
 
 	if common.DebugEnabled {
 		logger.LogDebug(c, "model_price_helper result: %s", priceData.ToSetting())
@@ -238,10 +381,14 @@ func HasModelBillingConfig(modelName string) bool {
 	return ok && strings.TrimSpace(expr) != ""
 }
 
-func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta, groupRatioInfo types.GroupRatioInfo) (types.PriceData, error) {
-	exprStr, ok := billing_setting.GetBillingExpr(info.OriginModelName)
-	if !ok {
-		return types.PriceData{}, fmt.Errorf("model %s is configured as tiered_expr but has no billing expression", info.OriginModelName)
+func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptTokens int, meta *types.TokenCountMeta, groupRatioInfo types.GroupRatioInfo, routeLineBilling *routeLineBillingConfig, exprOverride string) (types.PriceData, error) {
+	exprStr := strings.TrimSpace(exprOverride)
+	if exprStr == "" {
+		var ok bool
+		exprStr, ok = billing_setting.GetBillingExpr(info.OriginModelName)
+		if !ok {
+			return types.PriceData{}, fmt.Errorf("model %s is configured as tiered_expr but has no billing expression", info.OriginModelName)
+		}
 	}
 
 	estimatedCompletionTokens := 0
@@ -265,11 +412,17 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptT
 
 	// Expression coefficients are $/1M tokens prices; convert to quota the same way per-call billing does.
 	quotaBeforeGroup := rawCost / 1_000_000 * common.QuotaPerUnit
-	preConsumedQuota := billingexpr.QuotaRound(quotaBeforeGroup * groupRatioInfo.GroupRatio)
+	effectiveGroupRatio := groupRatioInfo.GroupRatio
+	if routeLineBilling != nil && routeLineBilling.BillingMode == model.RouteLineBillingModeRatio {
+		// 线路默认倍率是模型价格体系的一层倍率。表达式结算会在后扣时重跑，
+		// 所以必须写进冻结快照，避免预扣使用线路倍率、后扣又丢失线路倍率。
+		effectiveGroupRatio = effectiveGroupRatio * routeLineBilling.Ratio
+	}
+	preConsumedQuota := billingexpr.QuotaRound(quotaBeforeGroup * effectiveGroupRatio)
 
 	freeModel := false
 	if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
-		if groupRatioInfo.GroupRatio == 0 {
+		if effectiveGroupRatio == 0 {
 			preConsumedQuota = 0
 			freeModel = true
 		}
@@ -281,7 +434,7 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptT
 		ModelName:                 info.OriginModelName,
 		ExprString:                exprStr,
 		ExprHash:                  exprHash,
-		GroupRatio:                groupRatioInfo.GroupRatio,
+		GroupRatio:                effectiveGroupRatio,
 		EstimatedPromptTokens:     promptTokens,
 		EstimatedCompletionTokens: estimatedCompletionTokens,
 		EstimatedQuotaBeforeGroup: quotaBeforeGroup,
@@ -298,8 +451,9 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptT
 		GroupRatioInfo:    groupRatioInfo,
 		QuotaToPreConsume: preConsumedQuota,
 	}
+	applyRouteLineBillingConfig(&priceData, routeLineBilling)
 
-	logger.LogDebug(c, "model_price_helper_tiered result: model=%s preConsume=%d quotaBeforeGroup=%.2f groupRatio=%.2f tier=%s", info.OriginModelName, preConsumedQuota, quotaBeforeGroup, groupRatioInfo.GroupRatio, trace.MatchedTier)
+	logger.LogDebug(c, "model_price_helper_tiered result: model=%s preConsume=%d quotaBeforeGroup=%.2f groupRatio=%.2f effectiveGroupRatio=%.2f tier=%s", info.OriginModelName, preConsumedQuota, quotaBeforeGroup, groupRatioInfo.GroupRatio, effectiveGroupRatio, trace.MatchedTier)
 
 	info.PriceData = priceData
 	return priceData, nil

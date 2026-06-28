@@ -304,7 +304,14 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 			AutoBan: &autoBanInt,
 		}, nil
 	}
-	channel, selectGroup, err := service.CacheGetRandomSatisfiedChannel(retryParam)
+	channel, _, routeLineMatched, err := service.GetRouteLineSatisfiedChannel(retryParam)
+	selectGroup := retryParam.TokenGroup
+	if err != nil {
+		return nil, types.NewError(fmt.Errorf("线路选渠失败：%s", err.Error()), types.ErrorCodeGetChannelFailed, types.ErrOptionWithSkipRetry())
+	}
+	if !routeLineMatched {
+		channel, selectGroup, err = service.CacheGetRandomSatisfiedChannel(retryParam)
+	}
 
 	info.PriceData.GroupRatioInfo = helper.HandleGroupRatio(c, info)
 

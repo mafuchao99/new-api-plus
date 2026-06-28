@@ -1,7 +1,10 @@
 package model
 
 import (
+	"strings"
+
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
@@ -40,6 +43,38 @@ func IsChannelEnabledForAnyGroupModel(groups []string, modelName string, channel
 		}
 	}
 	return false
+}
+
+func ChannelSupportsModelName(channel *Channel, modelName string) bool {
+	if channel == nil {
+		return false
+	}
+	modelName = strings.TrimSpace(modelName)
+	if modelName == "" {
+		return false
+	}
+	normalizedModelName := ratio_setting.FormatMatchingModelName(modelName)
+	for _, channelModel := range channel.GetModels() {
+		channelModel = strings.TrimSpace(channelModel)
+		if channelModel == "" {
+			continue
+		}
+		if channelModel == modelName || channelModel == normalizedModelName {
+			return true
+		}
+	}
+	return false
+}
+
+func ChannelSupportsRequestPath(channel *Channel, requestPath string) bool {
+	if channel == nil {
+		return false
+	}
+	if requestPath == "" || channel.Type != constant.ChannelTypeAdvancedCustom {
+		return true
+	}
+	config := channel.GetOtherSettings().AdvancedCustom
+	return config != nil && config.SupportsPath(requestPath)
 }
 
 func isChannelEnabledForGroupModelDB(group string, modelName string, channelID int) bool {

@@ -104,11 +104,26 @@ func migrateTokenControllerTestDB(t *testing.T, db *gorm.DB) {
 	}
 }
 
+func migrateTokenControllerRouteTestDB(t *testing.T, db *gorm.DB) {
+	t.Helper()
+
+	if err := db.AutoMigrate(
+		&model.RouteSlot{},
+		&model.RouteLine{},
+		&model.RouteLineModelPrice{},
+		&model.ChannelRouteBinding{},
+		&model.ApiKeyRouteOverride{},
+	); err != nil {
+		t.Fatalf("failed to migrate route policy tables: %v", err)
+	}
+}
+
 func setupTokenControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
 	db := openTokenControllerTestDB(t)
 	migrateTokenControllerTestDB(t, db)
+	migrateTokenControllerRouteTestDB(t, db)
 	return db
 }
 
@@ -447,8 +462,8 @@ func TestSearchTokensMasksKeyInResponse(t *testing.T) {
 func TestSearchTokensFindsByNameOrKeyWithKeyword(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
 	nameToken := seedToken(t, db, 1, "keyword-name-match", "abcd1234efgh5678")
-	keyToken := seedToken(t, db, 1, "different-name", "unique1234key5678")
-	seedToken(t, db, 2, "keyword-name-match", "unique1234key5678")
+	keyToken := seedToken(t, db, 1, "different-title", "unique1234key5678")
+	seedToken(t, db, 2, "outside-user-token", "other1234key5678")
 
 	tests := []struct {
 		name     string
