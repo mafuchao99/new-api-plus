@@ -844,7 +844,7 @@ export function useCommonLogsColumns(isAdmin: boolean): ColumnDef<UsageLog>[] {
                     </span>
                   )}
                 </span>
-              ) : log.content ? (
+              ) : isAdmin && log.content ? (
                 <span className='text-muted-foreground truncate group-hover:underline'>
                   {log.content}
                 </span>

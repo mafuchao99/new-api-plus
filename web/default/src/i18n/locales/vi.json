@@ -3788,6 +3788,7 @@
     "Request Body Field": "Trường thân yêu cầu",
     "Request Body Memory Cache": "Bộ nhớ đệm RAM nội dung yêu cầu",
     "Request body pass-through is enabled. The request body will be sent directly to the upstream without any conversion.": "Chuyển tiếp body yêu cầu đã được bật. Body yêu cầu sẽ được gửi trực tiếp mà không chuyển đổi.",
+    "Request Content": "Nội dung yêu cầu",
     "Request conversion": "Chuyển đổi yêu cầu",
     "Request Conversion": "Chuyển đổi yêu cầu",
     "Request Count": "Number of requests",

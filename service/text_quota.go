@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -55,6 +56,189 @@ type textQuotaSummary struct {
 	AudioInputPrice          float64
 	ImageGenerationCallPrice float64
 	ToolCallSurchargeQuota   decimal.Decimal
+}
+
+const usageLogRequestBodyPreviewLimit = 64 * 1024
+
+func requestContentLogPreview(ctx *gin.Context, request dto.Request) string {
+	if content := usageLogUserContentFromRequest(request); content != "" {
+		return limitUsageLogRequestContent(content)
+	}
+
+	storage, err := common.GetBodyStorage(ctx)
+	if err != nil {
+		logger.LogDebug(ctx, "failed to get request body for usage log: "+err.Error())
+		return ""
+	}
+	currentPos, err := storage.Seek(0, io.SeekCurrent)
+	if err != nil {
+		logger.LogDebug(ctx, "failed to get request body position for usage log: "+err.Error())
+		return ""
+	}
+	defer func() {
+		if _, seekErr := storage.Seek(currentPos, io.SeekStart); seekErr != nil {
+			logger.LogDebug(ctx, "failed to restore request body position after usage log preview: "+seekErr.Error())
+		}
+	}()
+	if _, err = storage.Seek(0, io.SeekStart); err != nil {
+		logger.LogDebug(ctx, "failed to seek request body for usage log: "+err.Error())
+		return ""
+	}
+	body, err := io.ReadAll(io.LimitReader(storage, usageLogRequestBodyPreviewLimit+1))
+	if err != nil {
+		logger.LogDebug(ctx, "failed to read request body for usage log: "+err.Error())
+		return ""
+	}
+	return limitUsageLogRequestContent(usageLogUserContentPreview(body))
+}
+
+func limitUsageLogRequestContent(content string) string {
+	if len(content) > usageLogRequestBodyPreviewLimit {
+		return fmt.Sprintf("%s\n... [truncated, limit=%d bytes]", content[:usageLogRequestBodyPreviewLimit], usageLogRequestBodyPreviewLimit)
+	}
+	return content
+}
+
+func usageLogUserContentFromRequest(request dto.Request) string {
+	if request == nil {
+		return ""
+	}
+	parts := make([]string, 0)
+
+	switch req := request.(type) {
+	case *dto.GeneralOpenAIRequest:
+		for _, message := range req.Messages {
+			if message.Role != "user" {
+				continue
+			}
+			for _, media := range message.ParseContent() {
+				if media.Type == dto.ContentTypeText && strings.TrimSpace(media.Text) != "" {
+					parts = append(parts, strings.TrimSpace(media.Text))
+				}
+			}
+		}
+		parts = appendTextParts(parts, req.Input)
+		parts = appendTextParts(parts, req.Prompt)
+	case *dto.OpenAIResponsesRequest:
+		parts = appendJSONTextParts(parts, req.Input)
+	case *dto.EmbeddingRequest:
+		for _, input := range req.ParseInput() {
+			if strings.TrimSpace(input) != "" {
+				parts = append(parts, strings.TrimSpace(input))
+			}
+		}
+	case *dto.ImageRequest:
+		parts = appendTextParts(parts, req.Prompt)
+	case *dto.RerankRequest:
+		parts = appendTextParts(parts, req.Query)
+	}
+
+	return strings.TrimSpace(strings.Join(parts, "\n\n"))
+}
+
+func appendJSONTextParts(parts []string, data []byte) []string {
+	if len(data) == 0 {
+		return parts
+	}
+	var value any
+	if err := common.Unmarshal(data, &value); err != nil {
+		return parts
+	}
+	return appendTextParts(parts, value)
+}
+
+func usageLogUserContentPreview(body []byte) string {
+	var payload map[string]any
+	if err := common.Unmarshal(body, &payload); err != nil {
+		return ""
+	}
+
+	parts := make([]string, 0)
+	if messages, ok := payload["messages"].([]any); ok {
+		for _, item := range messages {
+			message, ok := item.(map[string]any)
+			if !ok || message["role"] != "user" {
+				continue
+			}
+			parts = appendTextParts(parts, message["content"])
+		}
+	}
+	parts = appendTextParts(parts, payload["input"])
+	parts = appendTextParts(parts, payload["prompt"])
+	parts = appendTextParts(parts, payload["query"])
+
+	return strings.TrimSpace(strings.Join(parts, "\n\n"))
+}
+
+func appendTextParts(parts []string, value any) []string {
+	switch v := value.(type) {
+	case string:
+		if text := cleanUsageLogUserText(v); text != "" {
+			return append(parts, text)
+		}
+	case []any:
+		for _, item := range v {
+			parts = appendTextParts(parts, item)
+		}
+	case map[string]any:
+		if role, ok := v["role"].(string); ok && role != "" && role != "user" {
+			return parts
+		}
+		for _, key := range []string{"text", "input_text"} {
+			if text, ok := v[key].(string); ok {
+				if cleaned := cleanUsageLogUserText(text); cleaned != "" {
+					parts = append(parts, cleaned)
+				}
+			}
+		}
+		if content, ok := v["content"]; ok {
+			parts = appendTextParts(parts, content)
+		}
+	}
+	return parts
+}
+
+func cleanUsageLogUserText(text string) string {
+	text = strings.TrimSpace(text)
+	for {
+		trimmed := strings.TrimSpace(text)
+		if trimmed == "" {
+			return ""
+		}
+		if strings.HasPrefix(trimmed, "# AGENTS.md instructions") {
+			text = strings.TrimLeft(trimmed[len("# AGENTS.md instructions"):], "\r\n\t ")
+			continue
+		}
+		next, ok := trimLeadingUsageLogContextBlock(trimmed)
+		if !ok {
+			return trimmed
+		}
+		text = next
+	}
+}
+
+func trimLeadingUsageLogContextBlock(text string) (string, bool) {
+	for _, tag := range []string{
+		"INSTRUCTIONS",
+		"environment_context",
+		"permissions instructions",
+		"app-context",
+		"collaboration_mode",
+		"skills_instructions",
+		"plugins_instructions",
+	} {
+		openTag := "<" + tag + ">"
+		closeTag := "</" + tag + ">"
+		if !strings.HasPrefix(text, openTag) {
+			continue
+		}
+		end := strings.Index(text, closeTag)
+		if end < 0 {
+			return "", false
+		}
+		return strings.TrimSpace(text[end+len(closeTag):]), true
+	}
+	return "", false
 }
 
 func cacheWriteTokensTotal(summary textQuotaSummary) int {
@@ -457,6 +641,9 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	}
 	if tieredBillingApplied {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
+	}
+	if requestBody := requestContentLogPreview(ctx, relayInfo.Request); requestBody != "" {
+		other["request_body"] = requestBody
 	}
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{

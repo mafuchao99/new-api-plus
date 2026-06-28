@@ -91,6 +91,9 @@ func assignDisplayLogIds(logs []*Log, startIdx int) {
 func formatUserLogs(logs []*Log, startIdx int) {
 	for i := range logs {
 		logs[i].ChannelName = ""
+		if logs[i].Type == LogTypeConsume || logs[i].Type == LogTypeError {
+			logs[i].Content = ""
+		}
 		var otherMap map[string]interface{}
 		otherMap, _ = common.StrToMap(logs[i].Other)
 		if otherMap != nil {
@@ -100,6 +103,7 @@ func formatUserLogs(logs []*Log, startIdx int) {
 			delete(otherMap, "audit_info")
 			// delete(otherMap, "reject_reason")
 			delete(otherMap, "stream_status")
+			delete(otherMap, "request_body")
 		}
 		logs[i].Other = common.MapToJsonStr(otherMap)
 	}

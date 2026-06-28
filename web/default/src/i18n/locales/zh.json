@@ -3788,6 +3788,7 @@
     "Request Body Field": "请求体字段",
     "Request Body Memory Cache": "请求体内存缓存",
     "Request body pass-through is enabled. The request body will be sent directly to the upstream without any conversion.": "请求体透传已启用。请求体将直接发送到上游，不进行任何转换。",
+    "Request Content": "请求内容",
     "Request conversion": "请求转换",
     "Request Conversion": "请求转换",
     "Request Count": "请求计数",

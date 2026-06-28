@@ -3788,6 +3788,7 @@
     "Request Body Field": "Request Body Field",
     "Request Body Memory Cache": "Request Body Memory Cache",
     "Request body pass-through is enabled. The request body will be sent directly to the upstream without any conversion.": "Request body pass-through is enabled. The request body will be sent directly to the upstream without any conversion.",
+    "Request Content": "Request Content",
     "Request conversion": "Request conversion",
     "Request Conversion": "Request Conversion",
     "Request Count": "Request Count",

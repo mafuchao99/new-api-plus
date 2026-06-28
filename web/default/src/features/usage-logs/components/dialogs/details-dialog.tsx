@@ -499,6 +499,10 @@ export function DetailsDialog(props: DetailsDialogProps) {
 
   // Login audit (type=7); visible to the log owner, not admin-only.
   const isLogin = props.log.type === 7
+  const requestBody =
+    props.isAdmin && typeof other?.request_body === 'string'
+      ? other.request_body
+      : ''
   const loginAuditFields = isLogin
     ? ([
         other?.login_method && {
@@ -1117,8 +1121,36 @@ export function DetailsDialog(props: DetailsDialogProps) {
           </DetailSection>
         )}
 
+        {/* Request content (admin only) */}
+        {requestBody && (
+          <div className='space-y-1.5'>
+            <Label className='text-xs font-semibold'>
+              {t('Request Content')}
+            </Label>
+            <div className='bg-muted/30 relative min-w-0 overflow-hidden rounded-md border p-2.5'>
+              <Button
+                variant='ghost'
+                size='sm'
+                className='absolute top-1.5 right-1.5 h-5 w-5 p-0'
+                onClick={() => copyToClipboard(requestBody)}
+                title={t('Copy to clipboard')}
+                aria-label={t('Copy to clipboard')}
+              >
+                {copiedText === requestBody ? (
+                  <Check className='size-3 text-green-600' />
+                ) : (
+                  <Copy className='size-3' />
+                )}
+              </Button>
+              <p className='min-w-0 pr-6 text-xs leading-relaxed break-all whitespace-pre-wrap sm:wrap-break-word'>
+                {requestBody}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Content */}
-        {details && (
+        {props.isAdmin && details && (
           <div className='space-y-1.5'>
             <Label className='text-xs font-semibold'>{t('Content')}</Label>
             <div className='bg-muted/30 relative min-w-0 overflow-hidden rounded-md border p-2.5'>

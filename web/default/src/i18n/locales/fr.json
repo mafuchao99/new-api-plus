@@ -3788,6 +3788,7 @@
     "Request Body Field": "Champ du corps de requête",
     "Request Body Memory Cache": "Cache mémoire du corps de requête",
     "Request body pass-through is enabled. The request body will be sent directly to the upstream without any conversion.": "Le passage du corps de requête est activé. Le corps sera envoyé directement en amont sans conversion.",
+    "Request Content": "Contenu de la requête",
     "Request conversion": "Conversion de requête",
     "Request Conversion": "Conversion de requête",
     "Request Count": "Nombre de requêtes",
