@@ -60,7 +60,7 @@ type textQuotaSummary struct {
 
 const usageLogRequestBodyPreviewLimit = 64 * 1024
 
-func requestContentLogPreview(ctx *gin.Context, request dto.Request) string {
+func RequestContentLogPreview(ctx *gin.Context, request dto.Request) string {
 	if content := usageLogUserContentFromRequest(request); content != "" {
 		return limitUsageLogRequestContent(content)
 	}
@@ -645,7 +645,7 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	if tieredBillingApplied {
 		InjectTieredBillingInfo(other, relayInfo, tieredResult)
 	}
-	if requestBody := requestContentLogPreview(ctx, relayInfo.Request); requestBody != "" {
+	if requestBody := RequestContentLogPreview(ctx, relayInfo.Request); requestBody != "" {
 		other["request_body"] = requestBody
 	}
 
