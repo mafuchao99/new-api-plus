@@ -163,10 +163,6 @@ function getRouteLineOptions(
   return [{ value: 'all', labelKey: 'All routes in category' }, ...routes]
 }
 
-function getRouteCount(models: RoutePricingModel[]) {
-  return models.reduce((sum, model) => sum + model.lines.length, 0)
-}
-
 function getLowestRatio(models: RoutePricingModel[]) {
   const ratios = models.flatMap((model) =>
     model.lines
@@ -611,22 +607,6 @@ export function PricingRoutePreview() {
           </aside>
 
           <main className='flex min-w-0 flex-col gap-4'>
-            <div className='flex flex-col gap-3 rounded-lg border bg-card p-4 md:flex-row md:items-center md:justify-between'>
-              <div>
-                <h2 className='text-base font-semibold'>
-                  {t('Route-aware model list')}
-                </h2>
-                <p className='text-muted-foreground mt-1 text-sm'>
-                  {t(
-                    'Users see route names, billing mode, and effective price without seeing internal route codes.'
-                  )}
-                </p>
-              </div>
-              <Badge variant='secondary'>
-                {t('{{count}} route choices', { count: getRouteCount(filteredModels) })}
-              </Badge>
-            </div>
-
             {routePricingQuery.isLoading ? (
               <LoadingCards />
             ) : routePricingQuery.isError ? (

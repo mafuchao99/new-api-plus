@@ -22,6 +22,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import {
+  ChevronsUpDown,
   CheckCircle2,
   Eye,
   EyeOff,
@@ -39,6 +40,14 @@ import { toast } from 'sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command'
+import {
   Form,
   FormControl,
   FormDescription,
@@ -48,6 +57,11 @@ import {
   FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import {
   Select,
   SelectContent,
@@ -594,11 +608,15 @@ function BindingCountPreview(props: { bindings: RouteLineBinding[] }) {
   }
 
   return (
-    <div className='flex max-w-80 flex-wrap gap-1'>
+    <div className='flex max-w-full min-w-0 flex-wrap gap-1'>
       {props.bindings.slice(0, 3).map((binding) => (
-        <Badge key={binding.id} variant='outline' className='gap-1 font-mono'>
+        <Badge
+          key={binding.id}
+          variant='outline'
+          className='min-w-0 max-w-full gap-1 font-mono'
+        >
           {binding.isDefault && <Star className='size-3' />}
-          {binding.channelName}
+          <span className='truncate'>{binding.channelName}</span>
         </Badge>
       ))}
       {props.bindings.length > 3 && (
@@ -620,10 +638,14 @@ function ModelPriceCountPreview(props: { modelPrices: RouteLineModelPrice[] }) {
   }
 
   return (
-    <div className='flex max-w-80 flex-wrap gap-1'>
+    <div className='flex max-w-full min-w-0 flex-wrap gap-1'>
       {props.modelPrices.slice(0, 3).map((price) => (
-        <Badge key={price.id} variant='outline' className='font-mono'>
-          {price.modelName}
+        <Badge
+          key={price.id}
+          variant='outline'
+          className='min-w-0 max-w-full font-mono'
+        >
+          <span className='truncate'>{price.modelName}</span>
         </Badge>
       ))}
       {props.modelPrices.length > 3 && (
@@ -670,13 +692,16 @@ function ModelPricesPreview(props: {
   }
 
   return (
-    <div className='grid gap-2'>
+    <div className='grid min-w-0 gap-2'>
       {props.modelPrices.map((price) => (
-        <div key={price.id} className='border-border/70 rounded-lg border p-3'>
-          <div className='flex flex-wrap items-start justify-between gap-2'>
+        <div
+          key={price.id}
+          className='border-border/70 min-w-0 rounded-lg border p-3'
+        >
+          <div className='grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]'>
             <div className='min-w-0'>
-              <div className='flex flex-wrap items-center gap-2'>
-                <span className='truncate font-mono font-medium'>
+              <div className='flex min-w-0 flex-wrap items-center gap-2'>
+                <span className='min-w-0 max-w-full truncate font-mono font-medium'>
                   {price.modelName}
                 </span>
                 <Badge variant='outline'>{t(billingModeLabel(price.billingMode))}</Badge>
@@ -684,15 +709,17 @@ function ModelPricesPreview(props: {
                   <Badge variant='outline'>{t('Disabled')}</Badge>
                 )}
               </div>
-              <div className='text-muted-foreground mt-1 text-xs'>
+              <div className='text-muted-foreground mt-1 break-words text-xs'>
                 {price.description || t('No description')}
               </div>
             </div>
-            <div className='flex shrink-0 flex-wrap items-center justify-end gap-1'>
-              <Badge variant='secondary' className='max-w-full'>
-                {price.billingMode === 'per_request'
-                  ? t('{{price}} / request', { price: priceValue(price) })
-                  : priceValue(price)}
+            <div className='flex min-w-0 flex-wrap items-center justify-end gap-1 sm:min-w-fit'>
+              <Badge variant='secondary' className='min-w-0 max-w-full'>
+                <span className='truncate'>
+                  {price.billingMode === 'per_request'
+                    ? t('{{price}} / request', { price: priceValue(price) })
+                    : priceValue(price)}
+                </span>
               </Badge>
               {props.onEdit && (
                 <Button
@@ -742,13 +769,16 @@ function ChannelBindingsPreview(props: {
   }
 
   return (
-    <div className='grid gap-2'>
+    <div className='grid min-w-0 gap-2'>
       {props.bindings.map((binding) => (
-        <div key={binding.id} className='border-border/70 rounded-lg border p-3'>
-          <div className='flex flex-wrap items-start justify-between gap-2'>
+        <div
+          key={binding.id}
+          className='border-border/70 min-w-0 rounded-lg border p-3'
+        >
+          <div className='grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]'>
             <div className='min-w-0'>
-              <div className='flex flex-wrap items-center gap-2'>
-                <span className='truncate font-medium'>
+              <div className='flex min-w-0 flex-wrap items-center gap-2'>
+                <span className='min-w-0 max-w-full truncate font-medium'>
                   {binding.channelName}
                 </span>
                 {binding.isDefault && (
@@ -762,16 +792,16 @@ function ChannelBindingsPreview(props: {
                   <Badge variant='outline'>{t('Disabled')}</Badge>
                 )}
               </div>
-              <div className='text-muted-foreground mt-1 text-xs'>
+              <div className='text-muted-foreground mt-1 break-words text-xs'>
                 {binding.description || t('No description')}
               </div>
               {binding.channelModels && (
-                <div className='text-muted-foreground mt-1 truncate font-mono text-xs'>
+                <div className='text-muted-foreground mt-1 max-w-full break-all font-mono text-xs'>
                   {binding.channelModels}
                 </div>
               )}
             </div>
-            <div className='flex shrink-0 flex-wrap justify-end gap-1'>
+            <div className='flex min-w-0 flex-wrap justify-end gap-1 sm:min-w-fit'>
               <Badge variant='outline'>P{binding.priority}</Badge>
               <Badge variant='outline'>W{binding.weight}</Badge>
               {props.onEdit && (
@@ -802,6 +832,130 @@ function ChannelBindingsPreview(props: {
         </div>
       ))}
     </div>
+  )
+}
+
+function ChannelCombobox(props: {
+  channels: ChannelOption[]
+  value: number
+  onValueChange: (value: number) => void
+  disabled?: boolean
+  isLoading?: boolean
+}) {
+  const { t } = useTranslation()
+  const [open, setOpen] = useState(false)
+  const [searchValue, setSearchValue] = useState('')
+  const selectedChannel = props.channels.find(
+    (channel) => channel.id === props.value
+  )
+  const filteredChannels = useMemo(() => {
+    const searchTerms = searchValue
+      .trim()
+      .toLowerCase()
+      .split(/\s+/)
+      .filter(Boolean)
+
+    if (searchTerms.length === 0) return props.channels
+
+    return props.channels.filter((channel) => {
+      const haystack = [
+        channel.name,
+        `#${channel.id}`,
+        String(channel.id),
+        `t${channel.type}`,
+        String(channel.type),
+        channel.models,
+        String(channel.status),
+      ]
+        .join(' ')
+        .toLowerCase()
+
+      return searchTerms.every((term) => haystack.includes(term))
+    })
+  }, [props.channels, searchValue])
+
+  const handleSelect = (channelId: number) => {
+    props.onValueChange(channelId)
+    setOpen(false)
+    setSearchValue('')
+  }
+  let selectedChannelLabel = t('Select channel')
+  if (props.isLoading) selectedChannelLabel = t('Loading...')
+  if (props.value > 0) selectedChannelLabel = `#${props.value}`
+  if (selectedChannel?.name) selectedChannelLabel = selectedChannel.name
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger
+        render={
+          <Button
+            type='button'
+            variant='outline'
+            role='combobox'
+            aria-expanded={open}
+            disabled={props.disabled}
+            className='h-auto min-h-10 w-full justify-between gap-2 px-3 py-2 text-left font-normal'
+          />
+        }
+      >
+        <span className='flex min-w-0 flex-1 flex-col items-start'>
+          <span className='w-full truncate'>{selectedChannelLabel}</span>
+          {selectedChannel && (
+            <span className='text-muted-foreground font-mono text-xs'>
+              #{selectedChannel.id} T{selectedChannel.type}
+            </span>
+          )}
+        </span>
+        <ChevronsUpDown className='size-4 shrink-0 opacity-50' />
+      </PopoverTrigger>
+      <PopoverContent
+        className='w-[var(--anchor-width)] overflow-hidden p-0'
+        onWheel={(event) => event.stopPropagation()}
+        onTouchMove={(event) => event.stopPropagation()}
+        onPointerDown={(event) => event.stopPropagation()}
+      >
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder={t('Search...')}
+            value={searchValue}
+            onValueChange={setSearchValue}
+          />
+          <CommandList className='max-h-80'>
+            <CommandEmpty>{t('No channels found')}</CommandEmpty>
+            <CommandGroup>
+              {filteredChannels.map((channel) => (
+                <CommandItem
+                  key={channel.id}
+                  value={String(channel.id)}
+                  data-checked={props.value === channel.id}
+                  onSelect={() => handleSelect(channel.id)}
+                  className='items-start gap-3 px-3 py-3'
+                >
+                  <span className='min-w-0 flex-1'>
+                    <span className='flex min-w-0 flex-wrap items-center gap-2'>
+                      <span className='max-w-full truncate font-medium'>
+                        {channel.name || `#${channel.id}`}
+                      </span>
+                      <Badge variant='outline' className='font-mono'>
+                        #{channel.id}
+                      </Badge>
+                      <Badge variant='outline' className='font-mono'>
+                        T{channel.type}
+                      </Badge>
+                    </span>
+                    {channel.models && (
+                      <span className='text-muted-foreground mt-1 block truncate font-mono text-xs'>
+                        {channel.models}
+                      </span>
+                    )}
+                  </span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          </CommandList>
+        </Command>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -2386,44 +2540,15 @@ export function RouteLinesSection() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>{t('Channel')}</FormLabel>
-                      <Select
-                        items={channels.map((channel) => ({
-                          value: String(channel.id),
-                          label: `${channel.name || `#${channel.id}`} (#${channel.id})`,
-                        }))}
-                        value={field.value > 0 ? String(field.value) : undefined}
-                        onValueChange={(value) => field.onChange(Number(value))}
-                        disabled={editingBinding !== null}
-                      >
-                        <FormControl>
-                          <SelectTrigger className='w-full'>
-                            <SelectValue
-                              placeholder={
-                                isChannelsLoading
-                                  ? t('Loading...')
-                                  : t('Select channel')
-                              }
-                            />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent alignItemWithTrigger={false}>
-                          <SelectGroup>
-                            {channels.map((channel) => (
-                              <SelectItem
-                                key={channel.id}
-                                value={String(channel.id)}
-                              >
-                                <span className='truncate'>
-                                  {channel.name || `#${channel.id}`}
-                                </span>
-                                <span className='text-muted-foreground font-mono text-xs'>
-                                  #{channel.id} T{channel.type}
-                                </span>
-                              </SelectItem>
-                            ))}
-                          </SelectGroup>
-                        </SelectContent>
-                      </Select>
+                      <FormControl>
+                        <ChannelCombobox
+                          channels={channels}
+                          value={field.value}
+                          onValueChange={field.onChange}
+                          disabled={editingBinding !== null}
+                          isLoading={isChannelsLoading}
+                        />
+                      </FormControl>
                       <FormDescription>
                         {t('Submitting an already bound channel updates its binding.')}
                       </FormDescription>
@@ -2781,9 +2906,9 @@ export function RouteLinesSection() {
             {sortedLines.map((line) => (
               <div
                 key={line.id}
-                className='border-border/70 rounded-lg border p-4'
+                className='border-border/70 min-w-0 rounded-lg border p-4'
               >
-                <div className='flex items-start justify-between gap-3'>
+                <div className='grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto]'>
                   <div className='min-w-0'>
                     <div className='flex items-center gap-2'>
                       <span className='truncate font-medium'>{line.name}</span>
@@ -2800,7 +2925,7 @@ export function RouteLinesSection() {
                       })}
                     </div>
                   </div>
-                  <div className='flex shrink-0 flex-wrap justify-end gap-1'>
+                  <div className='flex min-w-0 flex-wrap justify-end gap-1 sm:min-w-fit'>
                     <Button
                       type='button'
                       variant='outline'
