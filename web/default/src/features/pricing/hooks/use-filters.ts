@@ -51,7 +51,7 @@ function normalizeViewMode(value: unknown): ViewMode {
 }
 
 export function useFilters(models: PricingModel[]) {
-  const search = useSearch({ from: '/pricing/' })
+  const search = useSearch({ strict: false }) as FilterState
   const [filterState, setFilterState] = useState<FilterState>(() => ({
     search: search.search,
     sort: search.sort,

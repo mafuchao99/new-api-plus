@@ -18,7 +18,12 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useNavigate, useParams, useSearch } from '@tanstack/react-router'
+import {
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearch,
+} from '@tanstack/react-router'
 import {
   ArrowLeft,
   CalendarClock,
@@ -1259,8 +1264,12 @@ export function ModelDetailsDrawer(props: ModelDetailsDrawerProps) {
 
 export function ModelDetails() {
   const { t } = useTranslation()
-  const { modelId } = useParams({ from: '/pricing/$modelId/' })
-  const search = useSearch({ from: '/pricing/$modelId/' })
+  const { modelId } = useParams({ strict: false }) as { modelId?: string }
+  const search = useSearch({ strict: false }) as {
+    tokenUnit?: TokenUnit
+    rechargePrice?: boolean
+  }
+  const pathname = useLocation({ select: (location) => location.pathname })
   const navigate = useNavigate()
 
   const {
@@ -1283,6 +1292,10 @@ export function ModelDetails() {
   }, [models, modelId])
 
   const handleBack = () => {
+    if (pathname.startsWith('/pricing-old')) {
+      navigate({ to: '/pricing-old', search })
+      return
+    }
     navigate({ to: '/pricing', search })
   }
 

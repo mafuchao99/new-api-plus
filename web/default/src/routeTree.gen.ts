@@ -17,6 +17,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as SetupIndexRouteImport } from './routes/setup/index'
 import { Route as RankingsIndexRouteImport } from './routes/rankings/index'
 import { Route as PricingIndexRouteImport } from './routes/pricing/index'
+import { Route as PricingRoutePreviewIndexRouteImport } from './routes/pricing-route-preview/index'
+import { Route as PricingOldIndexRouteImport } from './routes/pricing-old/index'
 import { Route as AboutIndexRouteImport } from './routes/about/index'
 import { Route as OauthProviderRouteImport } from './routes/oauth/$provider'
 import { Route as ConsoleTopupRouteImport } from './routes/console/topup'
@@ -36,6 +38,7 @@ import { Route as authOauthRouteImport } from './routes/(auth)/oauth'
 import { Route as authForgotPasswordRouteImport } from './routes/(auth)/forgot-password'
 import { Route as AuthenticatedSystemSettingsRouteRouteImport } from './routes/_authenticated/system-settings/route'
 import { Route as PricingModelIdIndexRouteImport } from './routes/pricing/$modelId/index'
+import { Route as PricingOldModelIdIndexRouteImport } from './routes/pricing-old/$modelId/index'
 import { Route as AuthenticatedWalletIndexRouteImport } from './routes/_authenticated/wallet/index'
 import { Route as AuthenticatedUsersIndexRouteImport } from './routes/_authenticated/users/index'
 import { Route as AuthenticatedUsageLogsIndexRouteImport } from './routes/_authenticated/usage-logs/index'
@@ -106,6 +109,17 @@ const RankingsIndexRoute = RankingsIndexRouteImport.update({
 const PricingIndexRoute = PricingIndexRouteImport.update({
   id: '/pricing/',
   path: '/pricing/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PricingRoutePreviewIndexRoute =
+  PricingRoutePreviewIndexRouteImport.update({
+    id: '/pricing-route-preview/',
+    path: '/pricing-route-preview/',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const PricingOldIndexRoute = PricingOldIndexRouteImport.update({
+  id: '/pricing-old/',
+  path: '/pricing-old/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AboutIndexRoute = AboutIndexRouteImport.update({
@@ -202,6 +216,11 @@ const AuthenticatedSystemSettingsRouteRoute =
 const PricingModelIdIndexRoute = PricingModelIdIndexRouteImport.update({
   id: '/pricing/$modelId/',
   path: '/pricing/$modelId/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PricingOldModelIdIndexRoute = PricingOldModelIdIndexRouteImport.update({
+  id: '/pricing-old/$modelId/',
+  path: '/pricing-old/$modelId/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedWalletIndexRoute =
@@ -421,6 +440,8 @@ export interface FileRoutesByFullPath {
   '/console/topup': typeof ConsoleTopupRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about/': typeof AboutIndexRoute
+  '/pricing-old/': typeof PricingOldIndexRoute
+  '/pricing-route-preview/': typeof PricingRoutePreviewIndexRoute
   '/pricing/': typeof PricingIndexRoute
   '/rankings/': typeof RankingsIndexRoute
   '/setup/': typeof SetupIndexRoute
@@ -443,6 +464,7 @@ export interface FileRoutesByFullPath {
   '/usage-logs/': typeof AuthenticatedUsageLogsIndexRoute
   '/users/': typeof AuthenticatedUsersIndexRoute
   '/wallet/': typeof AuthenticatedWalletIndexRoute
+  '/pricing-old/$modelId/': typeof PricingOldModelIdIndexRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
@@ -480,6 +502,8 @@ export interface FileRoutesByTo {
   '/console/topup': typeof ConsoleTopupRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about': typeof AboutIndexRoute
+  '/pricing-old': typeof PricingOldIndexRoute
+  '/pricing-route-preview': typeof PricingRoutePreviewIndexRoute
   '/pricing': typeof PricingIndexRoute
   '/rankings': typeof RankingsIndexRoute
   '/setup': typeof SetupIndexRoute
@@ -502,6 +526,7 @@ export interface FileRoutesByTo {
   '/usage-logs': typeof AuthenticatedUsageLogsIndexRoute
   '/users': typeof AuthenticatedUsersIndexRoute
   '/wallet': typeof AuthenticatedWalletIndexRoute
+  '/pricing-old/$modelId': typeof PricingOldModelIdIndexRoute
   '/pricing/$modelId': typeof PricingModelIdIndexRoute
   '/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
@@ -543,6 +568,8 @@ export interface FileRoutesById {
   '/console/topup': typeof ConsoleTopupRoute
   '/oauth/$provider': typeof OauthProviderRoute
   '/about/': typeof AboutIndexRoute
+  '/pricing-old/': typeof PricingOldIndexRoute
+  '/pricing-route-preview/': typeof PricingRoutePreviewIndexRoute
   '/pricing/': typeof PricingIndexRoute
   '/rankings/': typeof RankingsIndexRoute
   '/setup/': typeof SetupIndexRoute
@@ -565,6 +592,7 @@ export interface FileRoutesById {
   '/_authenticated/usage-logs/': typeof AuthenticatedUsageLogsIndexRoute
   '/_authenticated/users/': typeof AuthenticatedUsersIndexRoute
   '/_authenticated/wallet/': typeof AuthenticatedWalletIndexRoute
+  '/pricing-old/$modelId/': typeof PricingOldModelIdIndexRoute
   '/pricing/$modelId/': typeof PricingModelIdIndexRoute
   '/_authenticated/system-settings/auth/$section': typeof AuthenticatedSystemSettingsAuthSectionRoute
   '/_authenticated/system-settings/billing/$section': typeof AuthenticatedSystemSettingsBillingSectionRoute
@@ -605,6 +633,8 @@ export interface FileRouteTypes {
     | '/console/topup'
     | '/oauth/$provider'
     | '/about/'
+    | '/pricing-old/'
+    | '/pricing-route-preview/'
     | '/pricing/'
     | '/rankings/'
     | '/setup/'
@@ -627,6 +657,7 @@ export interface FileRouteTypes {
     | '/usage-logs/'
     | '/users/'
     | '/wallet/'
+    | '/pricing-old/$modelId/'
     | '/pricing/$modelId/'
     | '/system-settings/auth/$section'
     | '/system-settings/billing/$section'
@@ -664,6 +695,8 @@ export interface FileRouteTypes {
     | '/console/topup'
     | '/oauth/$provider'
     | '/about'
+    | '/pricing-old'
+    | '/pricing-route-preview'
     | '/pricing'
     | '/rankings'
     | '/setup'
@@ -686,6 +719,7 @@ export interface FileRouteTypes {
     | '/usage-logs'
     | '/users'
     | '/wallet'
+    | '/pricing-old/$modelId'
     | '/pricing/$modelId'
     | '/system-settings/auth/$section'
     | '/system-settings/billing/$section'
@@ -726,6 +760,8 @@ export interface FileRouteTypes {
     | '/console/topup'
     | '/oauth/$provider'
     | '/about/'
+    | '/pricing-old/'
+    | '/pricing-route-preview/'
     | '/pricing/'
     | '/rankings/'
     | '/setup/'
@@ -748,6 +784,7 @@ export interface FileRouteTypes {
     | '/_authenticated/usage-logs/'
     | '/_authenticated/users/'
     | '/_authenticated/wallet/'
+    | '/pricing-old/$modelId/'
     | '/pricing/$modelId/'
     | '/_authenticated/system-settings/auth/$section'
     | '/_authenticated/system-settings/billing/$section'
@@ -780,9 +817,12 @@ export interface RootRouteChildren {
   ConsoleTopupRoute: typeof ConsoleTopupRoute
   OauthProviderRoute: typeof OauthProviderRoute
   AboutIndexRoute: typeof AboutIndexRoute
+  PricingOldIndexRoute: typeof PricingOldIndexRoute
+  PricingRoutePreviewIndexRoute: typeof PricingRoutePreviewIndexRoute
   PricingIndexRoute: typeof PricingIndexRoute
   RankingsIndexRoute: typeof RankingsIndexRoute
   SetupIndexRoute: typeof SetupIndexRoute
+  PricingOldModelIdIndexRoute: typeof PricingOldModelIdIndexRoute
   PricingModelIdIndexRoute: typeof PricingModelIdIndexRoute
 }
 
@@ -842,6 +882,20 @@ declare module '@tanstack/react-router' {
       path: '/pricing'
       fullPath: '/pricing/'
       preLoaderRoute: typeof PricingIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pricing-route-preview/': {
+      id: '/pricing-route-preview/'
+      path: '/pricing-route-preview'
+      fullPath: '/pricing-route-preview/'
+      preLoaderRoute: typeof PricingRoutePreviewIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pricing-old/': {
+      id: '/pricing-old/'
+      path: '/pricing-old'
+      fullPath: '/pricing-old/'
+      preLoaderRoute: typeof PricingOldIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/about/': {
@@ -975,6 +1029,13 @@ declare module '@tanstack/react-router' {
       path: '/pricing/$modelId'
       fullPath: '/pricing/$modelId/'
       preLoaderRoute: typeof PricingModelIdIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/pricing-old/$modelId/': {
+      id: '/pricing-old/$modelId/'
+      path: '/pricing-old/$modelId'
+      fullPath: '/pricing-old/$modelId/'
+      preLoaderRoute: typeof PricingOldModelIdIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/wallet/': {
@@ -1358,9 +1419,12 @@ const rootRouteChildren: RootRouteChildren = {
   ConsoleTopupRoute: ConsoleTopupRoute,
   OauthProviderRoute: OauthProviderRoute,
   AboutIndexRoute: AboutIndexRoute,
+  PricingOldIndexRoute: PricingOldIndexRoute,
+  PricingRoutePreviewIndexRoute: PricingRoutePreviewIndexRoute,
   PricingIndexRoute: PricingIndexRoute,
   RankingsIndexRoute: RankingsIndexRoute,
   SetupIndexRoute: SetupIndexRoute,
+  PricingOldModelIdIndexRoute: PricingOldModelIdIndexRoute,
   PricingModelIdIndexRoute: PricingModelIdIndexRoute,
 }
 export const routeTree = rootRouteImport

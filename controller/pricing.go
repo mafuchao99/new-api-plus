@@ -33,7 +33,7 @@ func filterPricingByUsableGroups(pricing []model.Pricing, usableGroup map[string
 	return filtered
 }
 
-func GetPricing(c *gin.Context) {
+func getVisiblePricingForRequest(c *gin.Context) ([]model.Pricing, map[string]float64, map[string]string, string) {
 	pricing := model.GetPricing()
 	userId, exists := c.Get("id")
 	usableGroup := map[string]string{}
@@ -57,12 +57,16 @@ func GetPricing(c *gin.Context) {
 
 	usableGroup = service.GetUserUsableGroups(group)
 	pricing = filterPricingByUsableGroups(pricing, usableGroup)
-	// check groupRatio contains usableGroup
 	for group := range ratio_setting.GetGroupRatioCopy() {
 		if _, ok := usableGroup[group]; !ok {
 			delete(groupRatio, group)
 		}
 	}
+	return pricing, groupRatio, usableGroup, group
+}
+
+func GetPricing(c *gin.Context) {
+	pricing, groupRatio, usableGroup, group := getVisiblePricingForRequest(c)
 
 	c.JSON(200, gin.H{
 		"success":            true,

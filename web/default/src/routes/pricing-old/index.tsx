@@ -20,7 +20,7 @@ import z from 'zod'
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useAuthStore } from '@/stores/auth-store'
 import { getFreshModuleAccess } from '@/lib/nav-modules'
-import { PricingRoutePreview } from '@/features/pricing-route-preview'
+import { Pricing } from '@/features/pricing'
 
 const pricingSearchSchema = z.object({
   search: z.string().optional(),
@@ -35,7 +35,7 @@ const pricingSearchSchema = z.object({
   rechargePrice: z.boolean().optional(),
 })
 
-export const Route = createFileRoute('/pricing/')({
+export const Route = createFileRoute('/pricing-old/')({
   validateSearch: pricingSearchSchema,
   beforeLoad: async ({ location }) => {
     const access = await getFreshModuleAccess('pricing')
@@ -52,5 +52,5 @@ export const Route = createFileRoute('/pricing/')({
       }
     }
   },
-  component: PricingRoutePreview,
+  component: Pricing,
 })
