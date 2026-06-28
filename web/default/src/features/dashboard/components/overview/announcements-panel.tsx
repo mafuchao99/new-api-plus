@@ -19,13 +19,17 @@ For commercial licensing, please contact support@quantumnous.com
 import { memo, useState } from 'react'
 import { Megaphone } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { getAnnouncementColorClass } from '@/lib/colors'
-import { formatDateTimeObject } from '@/lib/time'
-import { cn } from '@/lib/utils'
+
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAnnouncements } from '@/features/dashboard/hooks/use-status-data'
 import { getPreviewText } from '@/features/dashboard/lib'
 import type { AnnouncementItem } from '@/features/dashboard/types'
+import { getAnnouncementKey } from '@/hooks/use-notifications'
+import { getAnnouncementColorClass } from '@/lib/colors'
+import { formatDateTimeObject } from '@/lib/time'
+import { cn } from '@/lib/utils'
+import { useNotificationStore } from '@/stores/notification-store'
+
 import { PanelWrapper } from '../ui/panel-wrapper'
 import { AnnouncementDetailModal } from './announcement-detail-dialog'
 
@@ -35,7 +39,7 @@ const AnnouncementStatusDot = memo(function AnnouncementStatusDot(props: {
   return (
     <span
       className={cn(
-        'mt-1.5 inline-block size-2 shrink-0 rounded-full',
+        'inline-block size-2 shrink-0 rounded-full',
         getAnnouncementColorClass(props.type)
       )}
     />
@@ -48,10 +52,12 @@ export function AnnouncementsPanel() {
   const [selectedAnnouncement, setSelectedAnnouncement] =
     useState<AnnouncementItem | null>(null)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const { isAnnouncementRead, markAnnouncementsRead } = useNotificationStore()
 
   const handleAnnouncementClick = (item: AnnouncementItem) => {
     setSelectedAnnouncement(item)
     setIsDialogOpen(true)
+    markAnnouncementsRead([getAnnouncementKey(item)])
   }
 
   return (
@@ -73,6 +79,7 @@ export function AnnouncementsPanel() {
         <div>
           {list.map((item: AnnouncementItem, idx: number) => {
             const key = item.id ?? `announcement-${idx}`
+            const isRead = isAnnouncementRead(getAnnouncementKey(item))
             return (
               <button
                 key={key}
@@ -80,13 +87,26 @@ export function AnnouncementsPanel() {
                 onClick={() => handleAnnouncementClick(item)}
                 className={cn(
                   'group hover:bg-muted/40 w-full px-3 py-3 text-left transition-colors sm:px-5 sm:py-3.5',
+                  !isRead && 'bg-primary/5',
                   idx < list.length - 1 && 'border-border/60 border-b'
                 )}
               >
                 <div className='flex items-start gap-2.5'>
-                  <AnnouncementStatusDot type={item.type} />
+                  <span className='relative mt-1.5 flex size-2 shrink-0 items-center justify-center'>
+                    {!isRead ? (
+                      <span className='bg-primary absolute inline-flex size-2 animate-ping rounded-full opacity-60' />
+                    ) : null}
+                    <AnnouncementStatusDot type={item.type} />
+                  </span>
                   <div className='flex min-w-0 flex-1 flex-col gap-1'>
-                    <p className='line-clamp-1 text-sm font-medium'>
+                    <p
+                      className={cn(
+                        'line-clamp-1 text-sm',
+                        isRead
+                          ? 'text-foreground/85'
+                          : 'font-medium text-foreground'
+                      )}
+                    >
                       {getPreviewText(item.content)}
                     </p>
                     <div className='flex items-center justify-between'>

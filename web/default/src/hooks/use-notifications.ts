@@ -18,9 +18,20 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { useNotificationStore } from '@/stores/notification-store'
-import { getNotice } from '@/lib/api'
+
 import { useStatus } from '@/hooks/use-status'
+import { getNotice } from '@/lib/api'
+import { useNotificationStore } from '@/stores/notification-store'
+
+export interface NotificationAnnouncementItem {
+  id?: number | string
+  publishDate?: string | Date
+  content?: string
+  extra?: string
+  type?: string
+  title?: string
+  link?: string
+}
 
 function hashString(input: string): string {
   let hash = 0
@@ -39,7 +50,7 @@ function hashString(input: string): string {
  * Generate a unique key for an announcement
  * Prefer backend id, fall back to a content hash so edits register
  */
-function getAnnouncementKey(item: Record<string, unknown>): string {
+export function getAnnouncementKey(item: NotificationAnnouncementItem): string {
   if (!item) return ''
 
   if (item.id !== undefined && item.id !== null) {
@@ -47,12 +58,12 @@ function getAnnouncementKey(item: Record<string, unknown>): string {
   }
 
   const fingerprint = JSON.stringify({
-    publishDate: (item?.publishDate as string) || '',
-    content: ((item?.content as string) || '').trim(),
-    extra: ((item?.extra as string) || '').trim(),
-    type: (item?.type as string) || '',
-    title: ((item?.title as string) || '').trim(),
-    link: ((item?.link as string) || '').trim(),
+    publishDate: String(item.publishDate || ''),
+    content: (item.content || '').trim(),
+    extra: (item.extra || '').trim(),
+    type: item.type || '',
+    title: (item.title || '').trim(),
+    link: (item.link || '').trim(),
   })
   return `hash:${hashString(fingerprint)}`
 }
@@ -81,14 +92,18 @@ export function useNotifications() {
   // Fetch Announcements from status
   const { status, loading: statusLoading } = useStatus()
   const announcementsEnabled = status?.announcements_enabled ?? false
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const announcements: Record<string, unknown>[] = announcementsEnabled
-    ? ((status?.announcements || []) as Record<string, unknown>[]).slice(0, 20)
-    : []
+  const announcements = useMemo(() => {
+    if (!announcementsEnabled) return []
+
+    return (
+      (status?.announcements || []) as NotificationAnnouncementItem[]
+    ).slice(0, 20)
+  }, [announcementsEnabled, status?.announcements])
 
   // Notification store
   const {
     lastReadNotice,
+    readAnnouncementKeys,
     markNoticeRead,
     markAnnouncementsRead,
     isAnnouncementRead,
@@ -103,11 +118,12 @@ export function useNotifications() {
   const unreadCounts = useMemo(() => {
     const noticeUnread =
       noticeContent && noticeContent !== lastReadNotice ? 1 : 0
+    const readKeys = new Set(readAnnouncementKeys)
 
     const announcementsUnread = announcements.filter(
-      (item: Record<string, unknown>) => {
+      (item: NotificationAnnouncementItem) => {
         const key = getAnnouncementKey(item)
-        return !isAnnouncementRead(key)
+        return !readKeys.has(key)
       }
     ).length
 
@@ -116,31 +132,46 @@ export function useNotifications() {
       announcements: announcementsUnread,
       total: noticeUnread + announcementsUnread,
     }
-  }, [noticeContent, lastReadNotice, announcements, isAnnouncementRead])
+  }, [
+    noticeContent,
+    lastReadNotice,
+    announcements,
+    readAnnouncementKeys,
+  ])
 
   const markAnnouncementsAsRead = () => {
     if (announcements.length > 0) {
-      const allKeys = announcements.map((item: Record<string, unknown>) =>
+      const allKeys = announcements.map((item: NotificationAnnouncementItem) =>
         getAnnouncementKey(item)
       )
       markAnnouncementsRead(allKeys)
     }
   }
 
-  // Handle popover open
+  const markAnnouncementAsRead = (item: NotificationAnnouncementItem) => {
+    const key = getAnnouncementKey(item)
+    if (key) {
+      markAnnouncementsRead([key])
+    }
+  }
+
+  const isAnnouncementItemRead = (item: NotificationAnnouncementItem) => {
+    const key = getAnnouncementKey(item)
+    return key ? isAnnouncementRead(key) : true
+  }
+
   const handleOpenPopover = (tab?: 'notice' | 'announcements') => {
     const nextTab = tab || activeTab
 
-    // Mark currently visible content as read when opening the notification center
-    if (noticeContent) {
-      markNoticeRead(noticeContent)
-    }
-    if (nextTab === 'announcements') {
-      markAnnouncementsAsRead()
-    }
-
     setActiveTab(nextTab)
     setPopoverOpen(true)
+  }
+
+  const closePopover = () => {
+    if (activeTab === 'notice' && noticeContent) {
+      markNoticeRead(noticeContent)
+    }
+    setPopoverOpen(false)
   }
 
   const handlePopoverOpenChange = (open: boolean) => {
@@ -149,16 +180,11 @@ export function useNotifications() {
       return
     }
 
-    setPopoverOpen(false)
+    closePopover()
   }
 
-  // Handle tab change - mark announcements as read when switching to that tab
   const handleTabChange = (tab: 'notice' | 'announcements') => {
     setActiveTab(tab)
-
-    if (tab === 'announcements') {
-      markAnnouncementsAsRead()
-    }
   }
 
   return {
@@ -180,7 +206,10 @@ export function useNotifications() {
 
     // Actions
     openPopover: handleOpenPopover,
-    closePopover: () => setPopoverOpen(false),
+    closePopover,
     refetchNotice,
+    isAnnouncementRead: isAnnouncementItemRead,
+    markAnnouncementRead: markAnnouncementAsRead,
+    markAnnouncementsAsRead,
   }
 }
