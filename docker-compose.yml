@@ -16,6 +16,9 @@ version: '3.4' # For compatibility with older Docker versions
 
 services:
   new-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
     image: calciumion/new-api:latest
     container_name: new-api
     restart: always
