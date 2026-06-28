@@ -957,6 +957,76 @@ func (r *OpenAIResponsesRequest) GetToolsMap() []map[string]any {
 	return toolsMap
 }
 
+func (r *OpenAIResponsesRequest) RemoveImageGenerationTool() {
+	filteredTools, changed := RemoveImageGenerationToolFromResponsesTools(r.Tools)
+	if changed {
+		r.Tools = filteredTools
+	}
+}
+
+func RemoveImageGenerationToolFromResponsesJSON(data []byte) ([]byte, bool, error) {
+	var payload map[string]json.RawMessage
+	if err := common.Unmarshal(data, &payload); err != nil {
+		return nil, false, err
+	}
+	tools, ok := payload["tools"]
+	if !ok {
+		return data, false, nil
+	}
+
+	filteredTools, changed := RemoveImageGenerationToolFromResponsesTools(tools)
+	if !changed {
+		return data, false, nil
+	}
+	if len(filteredTools) == 0 {
+		delete(payload, "tools")
+	} else {
+		payload["tools"] = filteredTools
+	}
+
+	filteredData, err := common.Marshal(payload)
+	if err != nil {
+		return nil, false, err
+	}
+	return filteredData, true, nil
+}
+
+func RemoveImageGenerationToolFromResponsesTools(tools json.RawMessage) (json.RawMessage, bool) {
+	if len(tools) == 0 || common.GetJsonType(tools) != "array" {
+		return tools, false
+	}
+
+	var entries []json.RawMessage
+	if err := common.Unmarshal(tools, &entries); err != nil {
+		return tools, false
+	}
+
+	filtered := make([]json.RawMessage, 0, len(entries))
+	removed := false
+	for _, entry := range entries {
+		var tool struct {
+			Type string `json:"type"`
+		}
+		if err := common.Unmarshal(entry, &tool); err == nil && tool.Type == BuildInToolImageGeneration {
+			removed = true
+			continue
+		}
+		filtered = append(filtered, entry)
+	}
+	if !removed {
+		return tools, false
+	}
+	if len(filtered) == 0 {
+		return nil, true
+	}
+
+	filteredTools, err := common.Marshal(filtered)
+	if err != nil {
+		return tools, false
+	}
+	return filteredTools, true
+}
+
 type Reasoning struct {
 	Effort  string `json:"effort,omitempty"`
 	Summary string `json:"summary,omitempty"`

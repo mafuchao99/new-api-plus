@@ -126,6 +126,7 @@ func GetAndValidateResponsesRequest(c *gin.Context) (*dto.OpenAIResponsesRequest
 	if request.Input == nil {
 		return nil, errors.New("input is required")
 	}
+	request.RemoveImageGenerationTool()
 	return request, nil
 }
 
