@@ -477,11 +477,11 @@ export function PricingRoutePreview() {
               {t('Route pricing')}
             </Badge>
             <h1 className='text-3xl leading-tight font-semibold sm:text-4xl'>
-              {t('Model Square for route-based pricing')}
+              {t('Model route pricing')}
             </h1>
             <p className='text-muted-foreground mt-3 max-w-2xl text-sm leading-relaxed sm:text-base'>
               {t(
-                'Compare the same model across stable, budget, default, and per-request routes before replacing the current model square.'
+                'Compare the same model across routes, billing modes, and effective prices.'
               )}
             </p>
           </div>
