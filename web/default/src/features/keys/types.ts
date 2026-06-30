@@ -125,6 +125,9 @@ export const apiKeySchema = z.object({
   model_limits_enabled: z.boolean(),
   model_limits: z.string().nullish().default(''),
   allow_ips: z.string().nullish().default(''),
+  route_locked: z.boolean().optional().default(false),
+  locked_route_slot_id: z.number().nullish(),
+  locked_route_line_id: z.number().nullish(),
   route_overrides: z.array(apiKeyRouteOverrideSchema).optional().default([]),
   route_overrides_count: z.number().optional().default(0),
   effective_route_lines: z
@@ -172,6 +175,28 @@ export interface SearchApiKeysParams {
   token?: string
   p?: number
   size?: number
+}
+
+export interface AdminUserApiKeysParams {
+  userId: number
+  keyword?: string
+  p?: number
+  size?: number
+}
+
+export interface AdminApiKeyRouteSwitchPayload {
+  user_id?: number
+  token_ids?: number[]
+  route_slot_id: number
+  route_line_id: number
+}
+
+export interface AdminApiKeyRouteLockPayload {
+  user_id?: number
+  token_ids: number[]
+  route_slot_id: number
+  route_line_id: number
+  locked: boolean
 }
 
 export interface ApiKeyFormData {

@@ -81,6 +81,11 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
     setOpen('delete')
   }
 
+  const handleApiKeys = () => {
+    setCurrentRow(user)
+    setOpen('api-keys')
+  }
+
   const handleManage = async (action: Exclude<ManageUserAction, 'delete'>) => {
     try {
       const result = await manageUser(user.id, action)
@@ -214,6 +219,13 @@ export function DataTableRowActions({ row }: DataTableRowActionsProps) {
             {t('Manage Subscriptions')}
             <DropdownMenuShortcut>
               <CreditCard size={16} />
+            </DropdownMenuShortcut>
+          </DropdownMenuItem>
+
+          <DropdownMenuItem onSelect={handleApiKeys}>
+            {t('Manage API Keys')}
+            <DropdownMenuShortcut>
+              <KeyRound size={16} />
             </DropdownMenuShortcut>
           </DropdownMenuItem>
 

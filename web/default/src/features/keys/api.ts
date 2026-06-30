@@ -23,6 +23,9 @@ import type {
   GetApiKeysParams,
   GetApiKeysResponse,
   SearchApiKeysParams,
+  AdminUserApiKeysParams,
+  AdminApiKeyRouteSwitchPayload,
+  AdminApiKeyRouteLockPayload,
   ApiKeyFormData,
   ApiKeyRouteOptionsResponse,
 } from './types'
@@ -51,6 +54,20 @@ export async function searchApiKeys(
   if (p != null) queryParams.set('p', String(p))
   if (size != null) queryParams.set('size', String(size))
   const res = await api.get(`/api/token/search?${queryParams.toString()}`)
+  return res.data
+}
+
+export async function getAdminUserApiKeys(
+  params: AdminUserApiKeysParams
+): Promise<GetApiKeysResponse> {
+  const { userId, keyword = '', p = 1, size = 10 } = params
+  const queryParams = new URLSearchParams()
+  if (keyword) queryParams.set('keyword', keyword)
+  queryParams.set('p', String(p))
+  queryParams.set('size', String(size))
+  const res = await api.get(
+    `/api/token/admin/users/${userId}?${queryParams.toString()}`
+  )
   return res.data
 }
 
@@ -88,6 +105,20 @@ export async function updateApiKey(
   data: ApiKeyFormData & { id: number }
 ): Promise<ApiResponse<ApiKey>> {
   const res = await api.put('/api/token/', data)
+  return res.data
+}
+
+export async function switchAdminApiKeyRoutes(
+  data: AdminApiKeyRouteSwitchPayload
+): Promise<ApiResponse<{ updated?: number }>> {
+  const res = await api.post('/api/token/admin/route-switch', data)
+  return res.data
+}
+
+export async function lockAdminApiKeyRoute(
+  data: AdminApiKeyRouteLockPayload
+): Promise<ApiResponse<{ updated?: number }>> {
+  const res = await api.post('/api/token/admin/route-lock', data)
   return res.data
 }
 

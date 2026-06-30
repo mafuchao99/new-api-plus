@@ -137,6 +137,24 @@ func ListEffectiveRouteLineSelections(tokenId int) ([]EffectiveRouteLineSelectio
 	for _, override := range overrides {
 		overrideBySlot[override.RouteSlotId] = override
 	}
+	lockedSlotId := 0
+	lockedLineId := 0
+	if tokenId > 0 {
+		var token Token
+		if err := DB.
+			Select([]string{"id", "route_locked", "locked_route_slot_id", "locked_route_line_id"}).
+			First(&token, "id = ?", tokenId).Error; err != nil {
+			return nil, err
+		}
+		if token.RouteLocked &&
+			token.LockedRouteSlotId != nil &&
+			token.LockedRouteLineId != nil &&
+			*token.LockedRouteSlotId > 0 &&
+			*token.LockedRouteLineId > 0 {
+			lockedSlotId = *token.LockedRouteSlotId
+			lockedLineId = *token.LockedRouteLineId
+		}
+	}
 
 	lineIds := make([]int, 0, len(slots))
 	lineIdBySlot := make(map[int]int, len(slots))
@@ -145,7 +163,10 @@ func ListEffectiveRouteLineSelections(tokenId int) ([]EffectiveRouteLineSelectio
 	for _, slot := range slots {
 		lineId := 0
 		source := RouteLineSourceDefault
-		if override, ok := overrideBySlot[slot.Id]; ok {
+		if lockedSlotId == slot.Id {
+			lineId = lockedLineId
+			source = RouteLineSourceCustom
+		} else if override, ok := overrideBySlot[slot.Id]; ok {
 			// 核心规则：API key 对这个槽位有覆盖时，只使用覆盖线路；
 			// 覆盖线路无效时也不自动回退默认线路，避免用户明确选择被静默改写。
 			lineId = override.RouteLineId

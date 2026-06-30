@@ -18,6 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useTranslation } from 'react-i18next'
 import { SectionPageLayout } from '@/components/layout'
+import { ApiKeysRouteSwitchDialog } from '@/features/keys/components/api-keys-route-switch-dialog'
 import { UsersDeleteDialog } from './components/users-delete-dialog'
 import { UsersMutateDrawer } from './components/users-mutate-drawer'
 import { UsersPrimaryButtons } from './components/users-primary-buttons'
@@ -46,6 +47,11 @@ function UsersContent() {
         currentRow={open === 'update' ? currentRow || undefined : undefined}
       />
       <UsersDeleteDialog />
+      <ApiKeysRouteSwitchDialog
+        open={open === 'api-keys'}
+        onOpenChange={(isOpen) => !isOpen && setOpen(null)}
+        user={open === 'api-keys' ? currentRow : null}
+      />
     </>
   )
 }

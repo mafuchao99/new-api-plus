@@ -29,8 +29,11 @@ type Token struct {
 	Group              string         `json:"group" gorm:"default:''"`
 	CrossGroupRetry    bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
 	DeletedAt          gorm.DeletedAt `gorm:"index"`
-	RouteOverrides     []ApiKeyRouteOverride `json:"route_overrides,omitempty" gorm:"-"`
-	RouteOverridesCount int                   `json:"route_overrides_count" gorm:"-"`
+	RouteLocked         bool                       `json:"route_locked"`
+	LockedRouteSlotId   *int                       `json:"locked_route_slot_id"`
+	LockedRouteLineId   *int                       `json:"locked_route_line_id"`
+	RouteOverrides      []ApiKeyRouteOverride      `json:"route_overrides,omitempty" gorm:"-"`
+	RouteOverridesCount int                        `json:"route_overrides_count" gorm:"-"`
 	EffectiveRouteLines []ApiKeyEffectiveRouteLine `json:"effective_route_lines,omitempty" gorm:"-"`
 }
 

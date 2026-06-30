@@ -54,6 +54,23 @@ type tokenSaveRequest struct {
 	RouteOverrides     []tokenRouteOverrideRequest `json:"route_overrides"`
 }
 
+const adminLockedRouteMessage = "该密钥已被管理员锁定，不可切换，有问题联系管理员"
+
+type adminTokenRouteSwitchRequest struct {
+	UserId      int   `json:"user_id"`
+	TokenIds    []int `json:"token_ids"`
+	RouteSlotId int   `json:"route_slot_id"`
+	RouteLineId int   `json:"route_line_id"`
+}
+
+type adminTokenRouteLockRequest struct {
+	UserId      int   `json:"user_id"`
+	TokenIds    []int `json:"token_ids"`
+	RouteSlotId int   `json:"route_slot_id"`
+	RouteLineId int   `json:"route_line_id"`
+	Locked      bool  `json:"locked"`
+}
+
 func ensureUserTokenNameAvailable(c *gin.Context, userId int, tokenId int, name string) bool {
 	duplicated, err := model.IsUserTokenNameDuplicated(userId, tokenId, name)
 	if err != nil {
@@ -529,6 +546,93 @@ func GetTokenRouteOptions(c *gin.Context) {
 	})
 }
 
+func GetAdminUserTokens(c *gin.Context) {
+	userId, err := strconv.Atoi(c.Param("user_id"))
+	if err != nil || userId <= 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+
+	pageInfo := common.GetPageQuery(c)
+	keyword := c.Query("keyword")
+	var tokens []*model.Token
+	var total int64
+	if strings.TrimSpace(keyword) == "" {
+		tokens, err = model.GetAllUserTokens(userId, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+		if err == nil {
+			total, err = model.CountUserTokens(userId)
+		}
+	} else {
+		tokens, total, err = model.SearchUserTokens(userId, keyword, "", pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	}
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := enrichTokensWithRouteStrategies(tokens); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(buildMaskedTokenResponses(tokens))
+	common.ApiSuccess(c, pageInfo)
+}
+
+func SwitchAdminTokenRoutes(c *gin.Context) {
+	req := adminTokenRouteSwitchRequest{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	tokenIds := normalizeRouteActionTokenIds(req.TokenIds)
+	if req.UserId <= 0 && len(tokenIds) == 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if !validateTokenRouteTarget(c, req.RouteSlotId, req.RouteLineId, req.RouteLineId > 0) {
+		return
+	}
+	if req.RouteLineId == 0 {
+		slot, err := model.GetRouteSlotById(req.RouteSlotId)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if slot.DefaultRouteLineId == nil {
+			common.ApiErrorMsg(c, "route slot default route line is not configured")
+			return
+		}
+	}
+	count, err := model.BatchUpsertTokenRouteOverrides(req.UserId, tokenIds, req.RouteSlotId, req.RouteLineId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"updated": count})
+}
+
+func LockAdminTokenRoute(c *gin.Context) {
+	req := adminTokenRouteLockRequest{}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	tokenIds := normalizeRouteActionTokenIds(req.TokenIds)
+	if req.UserId <= 0 && len(tokenIds) == 0 {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
+		return
+	}
+	if !validateTokenRouteTarget(c, req.RouteSlotId, req.RouteLineId, req.Locked) {
+		return
+	}
+	count, err := model.BatchSetTokenRouteLock(req.UserId, tokenIds, req.RouteSlotId, req.RouteLineId, req.Locked)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{"updated": count})
+}
+
 func DeleteToken(c *gin.Context) {
 	id, _ := strconv.Atoi(c.Param("id"))
 	userId := c.GetInt("id")
@@ -579,6 +683,13 @@ func UpdateToken(c *gin.Context) {
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	if statusOnly == "" {
+		var ok bool
+		routeOverrides, ok = enforceLockedTokenRoute(c, cleanToken, routeOverrides)
+		if !ok {
+			return
+		}
 	}
 	if statusOnly == "" &&
 		req.Name != cleanToken.Name &&
@@ -673,6 +784,86 @@ func GetTokenKeysBatch(c *gin.Context) {
 		keysMap[t.Id] = t.GetFullKey()
 	}
 	common.ApiSuccess(c, gin.H{"keys": keysMap})
+}
+
+func normalizeRouteActionTokenIds(tokenIds []int) []int {
+	if len(tokenIds) == 0 {
+		return nil
+	}
+	normalized := make([]int, 0, len(tokenIds))
+	seen := make(map[int]bool, len(tokenIds))
+	for _, tokenId := range tokenIds {
+		if tokenId <= 0 || seen[tokenId] {
+			continue
+		}
+		seen[tokenId] = true
+		normalized = append(normalized, tokenId)
+	}
+	return normalized
+}
+
+func validateTokenRouteTarget(c *gin.Context, routeSlotId int, routeLineId int, requireLine bool) bool {
+	if routeSlotId <= 0 || routeLineId < 0 || (requireLine && routeLineId <= 0) {
+		common.ApiErrorMsg(c, "route slot and route line cannot be empty")
+		return false
+	}
+	slot, err := model.GetRouteSlotById(routeSlotId)
+	if err != nil {
+		common.ApiError(c, err)
+		return false
+	}
+	if !slot.Enabled {
+		common.ApiErrorMsg(c, "route slot is disabled")
+		return false
+	}
+	if !requireLine {
+		return true
+	}
+	line, err := model.GetRouteLineById(routeLineId)
+	if err != nil {
+		common.ApiError(c, err)
+		return false
+	}
+	if !line.Enabled || !line.Visible {
+		common.ApiErrorMsg(c, "route line is not available")
+		return false
+	}
+	if line.SlotId == nil || *line.SlotId != slot.Id {
+		common.ApiErrorMsg(c, "route line must belong to the selected route slot")
+		return false
+	}
+	return true
+}
+
+func enforceLockedTokenRoute(
+	c *gin.Context,
+	token *model.Token,
+	overrides []model.ApiKeyRouteOverrideInput,
+) ([]model.ApiKeyRouteOverrideInput, bool) {
+	if token == nil ||
+		!token.RouteLocked ||
+		token.LockedRouteSlotId == nil ||
+		token.LockedRouteLineId == nil ||
+		*token.LockedRouteSlotId <= 0 ||
+		*token.LockedRouteLineId <= 0 {
+		return overrides, true
+	}
+	lockedSlotId := *token.LockedRouteSlotId
+	lockedLineId := *token.LockedRouteLineId
+	for _, override := range overrides {
+		if override.RouteSlotId != lockedSlotId {
+			continue
+		}
+		if override.RouteLineId != lockedLineId {
+			common.ApiErrorMsg(c, adminLockedRouteMessage)
+			return nil, false
+		}
+		return overrides, true
+	}
+	return append(overrides, model.ApiKeyRouteOverrideInput{
+		RouteSlotId: lockedSlotId,
+		RouteLineId: lockedLineId,
+	}), true
 }
 
 func validateTokenRouteOverrides(c *gin.Context, requests []tokenRouteOverrideRequest) ([]model.ApiKeyRouteOverrideInput, bool) {
@@ -779,12 +970,17 @@ func enrichTokensWithRouteStrategies(tokens []*model.Token) error {
 				RouteSlot: routeSlotSummary(slot),
 			}
 			lineId := 0
-			if slot.DefaultRouteLineId != nil {
-				lineId = *slot.DefaultRouteLineId
-			}
-			if override, ok := overridesByTokenSlot[token.Id][slot.Id]; ok {
+			if token.RouteLocked &&
+				token.LockedRouteSlotId != nil &&
+				token.LockedRouteLineId != nil &&
+				*token.LockedRouteSlotId == slot.Id {
+				lineId = *token.LockedRouteLineId
+				item.IsCustom = true
+			} else if override, ok := overridesByTokenSlot[token.Id][slot.Id]; ok {
 				lineId = override.RouteLineId
 				item.IsCustom = true
+			} else if slot.DefaultRouteLineId != nil {
+				lineId = *slot.DefaultRouteLineId
 			}
 			if line, ok := lineById[lineId]; ok {
 				summary := routeLineSummary(line)
