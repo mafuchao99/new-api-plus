@@ -3,6 +3,7 @@ package controller
 import (
 	"net/http"
 	"strconv"
+	"sync"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
@@ -11,6 +12,22 @@ import (
 )
 
 const logExportBatchSize = 500
+
+var logExportLocks sync.Map
+
+func acquireLogExportLock(c *gin.Context, isAdmin bool) (func(), bool) {
+	scope := "user"
+	if isAdmin {
+		scope = "admin"
+	}
+	key := scope + ":" + strconv.Itoa(c.GetInt("id"))
+	if _, loaded := logExportLocks.LoadOrStore(key, struct{}{}); loaded {
+		return nil, false
+	}
+	return func() {
+		logExportLocks.Delete(key)
+	}, true
+}
 
 func GetAllLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
@@ -74,6 +91,13 @@ func SearchUserLogs(c *gin.Context) {
 }
 
 func exportLogs(c *gin.Context, isAdmin bool) {
+	release, ok := acquireLogExportLock(c, isAdmin)
+	if !ok {
+		common.ApiErrorMsg(c, "log export already in progress")
+		return
+	}
+	defer release()
+
 	userId := c.GetInt("id")
 	logType, _ := strconv.Atoi(c.Query("type"))
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
