@@ -321,6 +321,7 @@ func SetApiRouter(router *gin.Engine) {
 		}
 		logRoute := apiRouter.Group("/log")
 		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs)
+		logRoute.GET("/export", middleware.AdminAuth(), controller.ExportAllLogs)
 		// Legacy synchronous direct-delete route used only by the classic frontend.
 		// TODO: remove once the classic frontend is removed; the default frontend uses /system-task/log-cleanup.
 		logRoute.DELETE("/", middleware.RootAuth(), controller.DeleteHistoryLogs)
@@ -328,6 +329,7 @@ func SetApiRouter(router *gin.Engine) {
 		logRoute.GET("/token-stat", middleware.AdminAuth(), controller.GetTokenUsageStats)
 		logRoute.GET("/self/stat", middleware.UserAuth(), controller.GetLogsSelfStat)
 		logRoute.GET("/self/token-stat", middleware.UserAuth(), controller.GetSelfTokenUsageStats)
+		logRoute.GET("/self/export", middleware.UserAuth(), controller.ExportUserLogs)
 		logRoute.GET("/channel_affinity_usage_cache", middleware.AdminAuth(), controller.GetChannelAffinityUsageCacheStats)
 		logRoute.GET("/search", middleware.AdminAuth(), controller.SearchAllLogs)
 		logRoute.GET("/self", middleware.UserAuth(), controller.GetUserLogs)

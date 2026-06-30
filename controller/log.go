@@ -10,6 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const logExportBatchSize = 500
+
 func GetAllLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	logType, _ := strconv.Atoi(c.Query("type"))
@@ -69,6 +71,60 @@ func SearchUserLogs(c *gin.Context) {
 		"success": false,
 		"message": "该接口已废弃",
 	})
+}
+
+func exportLogs(c *gin.Context, isAdmin bool) {
+	userId := c.GetInt("id")
+	logType, _ := strconv.Atoi(c.Query("type"))
+	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
+	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
+	username := c.Query("username")
+	tokenName := c.Query("token_name")
+	modelName := c.Query("model_name")
+	channel, _ := strconv.Atoi(c.Query("channel"))
+	group := c.Query("group")
+	requestId := c.Query("request_id")
+	upstreamRequestId := c.Query("upstream_request_id")
+
+	allLogs := make([]*model.Log, 0)
+	for startIdx := 0; ; startIdx += logExportBatchSize {
+		var (
+			logs []*model.Log
+			err  error
+		)
+		if isAdmin {
+			logs, _, err = model.GetAllLogs(logType, startTimestamp, endTimestamp, modelName, username, tokenName, startIdx, logExportBatchSize, channel, group, requestId, upstreamRequestId)
+		} else {
+			logs, _, err = model.GetUserLogs(userId, logType, startTimestamp, endTimestamp, modelName, tokenName, startIdx, logExportBatchSize, group, requestId, upstreamRequestId)
+		}
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		for _, log := range logs {
+			log.ChannelId = 0
+			log.ChannelName = ""
+		}
+		allLogs = append(allLogs, logs...)
+		if len(logs) < logExportBatchSize {
+			break
+		}
+	}
+
+	common.ApiSuccess(c, common.PageInfo{
+		Page:     1,
+		PageSize: len(allLogs),
+		Total:    len(allLogs),
+		Items:    allLogs,
+	})
+}
+
+func ExportAllLogs(c *gin.Context) {
+	exportLogs(c, true)
+}
+
+func ExportUserLogs(c *gin.Context) {
+	exportLogs(c, false)
 }
 
 func GetLogByKey(c *gin.Context) {

@@ -83,6 +83,20 @@ export const getUserLogs = (
   config?: AxiosRequestConfig
 ) => fetchLogs('/api/log', params, false, config)
 
+export async function exportCommonLogs(
+  params: GetLogsParams = {},
+  isAdmin = false,
+  config?: AxiosRequestConfig
+): Promise<GetLogsResponse> {
+  const queryParams = buildQueryParams(params as Record<string, unknown>)
+  const path = isAdmin ? '/api/log/export' : '/api/log/self/export'
+  const res = await api.get(`${path}?${queryParams}`, {
+    ...config,
+    disableDuplicate: true,
+  })
+  return res.data
+}
+
 export const getLogStats = (params: GetLogStatsParams = {}) =>
   fetchLogStats('/api/log', params, true)
 

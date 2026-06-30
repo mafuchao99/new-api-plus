@@ -21,15 +21,14 @@ import {
   formatTimestampToDate,
   formatUseTime,
 } from '@/lib/format'
-import { getAllLogs, getUserLogs } from '../api'
+import { exportCommonLogs } from '../api'
 import { buildDetailSegments } from '../components/columns/common-logs-columns'
 import type { UsageLog } from '../data/schema'
 import type { GetTokenUsageStatsParams, TokenUsageStat } from '../types'
 import { formatModelName, parseLogOther } from './format'
 import { buildApiParams, getLogTypeConfig } from './utils'
 
-const EXPORT_PAGE_SIZE = 500
-const EXPORT_REQUEST_TIMEOUT_MS = 20_000
+const EXPORT_REQUEST_TIMEOUT_MS = 120_000
 
 function escapeCsvValue(value: string | number | boolean | null | undefined) {
   const text = value == null ? '' : String(value)
@@ -63,38 +62,20 @@ export async function fetchAllCommonLogsForExport(config: {
   onProgress?: (progress: { current: number; total: number }) => void
 }): Promise<UsageLog[]> {
   const { isAdmin, searchParams, columnFilters, onProgress } = config
-  const fetchPage = async (page: number) => {
-    const params = buildApiParams({
-      page,
-      pageSize: EXPORT_PAGE_SIZE,
-      searchParams,
-      columnFilters,
-      isAdmin,
-    })
-    const exportParams = { ...params, export: true }
-    const config = { timeout: EXPORT_REQUEST_TIMEOUT_MS }
-    return isAdmin
-      ? await getAllLogs(exportParams, config)
-      : await getUserLogs(exportParams, config)
-  }
+  const params = buildApiParams({
+    page: 1,
+    pageSize: 1,
+    searchParams,
+    columnFilters,
+    isAdmin,
+  })
+  const result = await exportCommonLogs(params, isAdmin, {
+    timeout: EXPORT_REQUEST_TIMEOUT_MS,
+  })
+  if (!result.success) throw new Error(result.message)
 
-  const firstPage = await fetchPage(1)
-  if (!firstPage.success) throw new Error(firstPage.message)
-
-  const firstItems = (firstPage.data?.items ?? []) as UsageLog[]
-  const total = firstPage.data?.total ?? firstItems.length
-  const pageCount = Math.ceil(total / EXPORT_PAGE_SIZE)
-  const rest: UsageLog[] = []
-  if (pageCount > 0) onProgress?.({ current: 1, total: pageCount })
-
-  for (let page = 2; page <= pageCount; page++) {
-    const result = await fetchPage(page)
-    if (!result.success) throw new Error(result.message)
-    rest.push(...((result.data?.items ?? []) as UsageLog[]))
-    onProgress?.({ current: page, total: pageCount })
-  }
-
-  return [...firstItems, ...rest]
+  onProgress?.({ current: 1, total: 1 })
+  return (result.data?.items ?? []) as UsageLog[]
 }
 
 export function buildTokenUsageStatsExportParams(config: {
