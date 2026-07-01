@@ -47,6 +47,25 @@ import AccountDeleteModal from './personal/modals/AccountDeleteModal';
 import ChangePasswordModal from './personal/modals/ChangePasswordModal';
 import SecureVerificationModal from '../common/modals/SecureVerificationModal';
 import { useSecureVerification } from '../../hooks/common/useSecureVerification';
+import { quotaToDisplayAmount } from '../../helpers/quota';
+
+const QUOTA_WARNING_THRESHOLD_UNIT_AMOUNT = 'amount';
+const DEFAULT_QUOTA_WARNING_THRESHOLD = 1;
+
+function normalizeWarningThreshold(settings) {
+  if (settings.quota_warning_threshold == null) {
+    return DEFAULT_QUOTA_WARNING_THRESHOLD;
+  }
+  if (
+    settings.quota_warning_threshold_unit ===
+    QUOTA_WARNING_THRESHOLD_UNIT_AMOUNT
+  ) {
+    return settings.quota_warning_threshold;
+  }
+  return Number(
+    quotaToDisplayAmount(settings.quota_warning_threshold).toFixed(6),
+  );
+}
 
 const PersonalSetting = () => {
   const [userState, userDispatch] = useContext(UserContext);
@@ -84,7 +103,7 @@ const PersonalSetting = () => {
   ] = useState(null);
   const [notificationSettings, setNotificationSettings] = useState({
     warningType: 'email',
-    warningThreshold: 100000,
+    warningThreshold: DEFAULT_QUOTA_WARNING_THRESHOLD,
     webhookUrl: '',
     webhookSecret: '',
     notificationEmail: '',
@@ -184,7 +203,7 @@ const PersonalSetting = () => {
       const settings = JSON.parse(userState.user.setting);
       setNotificationSettings({
         warningType: settings.notify_type || 'email',
-        warningThreshold: settings.quota_warning_threshold || 500000,
+        warningThreshold: normalizeWarningThreshold(settings),
         webhookUrl: settings.webhook_url || '',
         webhookSecret: settings.webhook_secret || '',
         notificationEmail: settings.notification_email || '',
@@ -513,6 +532,7 @@ const PersonalSetting = () => {
         quota_warning_threshold: parseFloat(
           notificationSettings.warningThreshold,
         ),
+        quota_warning_threshold_unit: QUOTA_WARNING_THRESHOLD_UNIT_AMOUNT,
         webhook_url: notificationSettings.webhookUrl,
         webhook_secret: notificationSettings.webhookSecret,
         notification_email: notificationSettings.notificationEmail,

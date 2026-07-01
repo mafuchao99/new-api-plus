@@ -105,9 +105,6 @@ const UserInfoHeader = ({ t, userState }) => {
                         {t('普通用户')}
                       </Tag>
                     )}
-                    <Tag size='large' shape='circle' style={{ color: 'white' }}>
-                      ID: {userState?.user?.id}
-                    </Tag>
                   </div>
                 </div>
               </div>

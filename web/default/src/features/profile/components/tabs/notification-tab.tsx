@@ -21,6 +21,8 @@ import { Bell, Loader2, Mail, Server, Webhook } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { ROLE } from '@/lib/roles'
+import { getCurrencyLabel } from '@/lib/currency'
+import { quotaUnitsToDollars } from '@/lib/format'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -31,6 +33,7 @@ import { updateUserSettings } from '../../api'
 import {
   DEFAULT_QUOTA_WARNING_THRESHOLD,
   NOTIFICATION_METHODS,
+  QUOTA_WARNING_THRESHOLD_UNIT_AMOUNT,
 } from '../../constants'
 import { parseUserSettings } from '../../lib'
 import type { UserProfile, UserSettings, NotifyType } from '../../types'
@@ -51,6 +54,21 @@ function normalizeNotifyType(value: unknown): NotifyType {
     NOTIFICATION_VALUES.has(value as NotifyType)
     ? (value as NotifyType)
     : 'email'
+}
+
+function normalizeWarningThreshold(settings: UserSettings): number {
+  if (settings.quota_warning_threshold == null) {
+    return DEFAULT_QUOTA_WARNING_THRESHOLD
+  }
+  if (
+    settings.quota_warning_threshold_unit ===
+    QUOTA_WARNING_THRESHOLD_UNIT_AMOUNT
+  ) {
+    return settings.quota_warning_threshold
+  }
+  return Number(
+    quotaUnitsToDollars(settings.quota_warning_threshold).toFixed(6)
+  )
 }
 
 // ============================================================================
@@ -94,8 +112,7 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
       const parsed = parseUserSettings(profile.setting)
       setSettings({
         notify_type: normalizeNotifyType(parsed.notify_type),
-        quota_warning_threshold:
-          parsed.quota_warning_threshold ?? DEFAULT_QUOTA_WARNING_THRESHOLD,
+        quota_warning_threshold: normalizeWarningThreshold(parsed),
         notification_email: parsed.notification_email ?? '',
         webhook_url: parsed.webhook_url ?? '',
         webhook_secret: parsed.webhook_secret ?? '',
@@ -115,7 +132,10 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
   const handleSave = async () => {
     try {
       setLoading(true)
-      const response = await updateUserSettings(settings)
+      const response = await updateUserSettings({
+        ...settings,
+        quota_warning_threshold_unit: QUOTA_WARNING_THRESHOLD_UNIT_AMOUNT,
+      })
 
       if (response.success) {
         toast.success(t('Settings updated successfully'))
@@ -131,6 +151,9 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
   }
 
   const notifyType = normalizeNotifyType(settings.notify_type)
+  const thresholdCurrencyLabel = getCurrencyLabel()
+  const thresholdUnitLabel = t(thresholdCurrencyLabel)
+  const thresholdStep = thresholdCurrencyLabel === 'Tokens' ? '1' : '0.01'
 
   return (
     <div className='space-y-4 sm:space-y-6'>
@@ -170,10 +193,15 @@ export function NotificationTab({ profile, onUpdate }: NotificationTabProps) {
 
       {/* Warning Threshold */}
       <div className='space-y-1.5'>
-        <Label htmlFor='threshold'>{t('Quota Warning Threshold')}</Label>
+        <Label htmlFor='threshold'>
+          {t('Balance Warning Threshold')}{' '}
+          <span className='text-muted-foreground'>({thresholdUnitLabel})</span>
+        </Label>
         <Input
           id='threshold'
           type='number'
+          min='0'
+          step={thresholdStep}
           className='h-9'
           value={settings.quota_warning_threshold}
           onChange={(e) =>

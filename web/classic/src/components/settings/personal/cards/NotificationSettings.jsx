@@ -34,12 +34,7 @@ import {
 } from '@douyinfe/semi-ui';
 import { IconMail, IconKey, IconBell, IconLink } from '@douyinfe/semi-icons';
 import { ShieldCheck, Bell, DollarSign, Settings } from 'lucide-react';
-import {
-  renderQuotaWithPrompt,
-  API,
-  showSuccess,
-  showError,
-} from '../../../../helpers';
+import { API, showSuccess, showError } from '../../../../helpers';
 import CodeViewer from '../../../playground/CodeViewer';
 import { StatusContext } from '../../../../context/Status';
 import { UserContext } from '../../../../context/User';
@@ -436,25 +431,18 @@ const NotificationSettings = ({
 
                 <Form.AutoComplete
                   field='warningThreshold'
-                  label={
-                    <span>
-                      {t('额度预警阈值')}{' '}
-                      {renderQuotaWithPrompt(
-                        notificationSettings.warningThreshold,
-                      )}
-                    </span>
-                  }
-                  placeholder={t('请输入预警额度')}
+                  label={t('余额预警阈值')}
+                  placeholder={t('请输入余额预警阈值')}
                   data={[
-                    { value: 100000, label: '0.2$' },
-                    { value: 500000, label: '1$' },
-                    { value: 1000000, label: '2$' },
-                    { value: 5000000, label: '10$' },
+                    { value: 0.2, label: '0.2' },
+                    { value: 1, label: '1' },
+                    { value: 2, label: '2' },
+                    { value: 10, label: '10' },
                   ]}
                   onChange={(val) => handleFormChange('warningThreshold', val)}
                   prefix={<IconBell />}
                   extraText={t(
-                    '当钱包或订阅剩余额度低于此数值时，系统将通过选择的方式发送通知',
+                    '当钱包或订阅余额低于此数值时，系统将通过选择的方式发送通知',
                   )}
                   style={{ width: '100%', maxWidth: '300px' }}
                   rules={[
@@ -478,7 +466,10 @@ const NotificationSettings = ({
                     checkedText={t('开')}
                     uncheckedText={t('关')}
                     onChange={(value) =>
-                      handleFormChange('upstreamModelUpdateNotifyEnabled', value)
+                      handleFormChange(
+                        'upstreamModelUpdateNotifyEnabled',
+                        value,
+                      )
                     }
                     extraText={t(
                       '仅管理员可用。开启后，当系统定时检测全部渠道发现上游模型变更或检测异常时，将按你选择的通知方式发送汇总通知；渠道或模型过多时会自动省略部分明细。',

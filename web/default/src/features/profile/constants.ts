@@ -21,9 +21,11 @@ For commercial licensing, please contact support@quantumnous.com
 // ============================================================================
 
 /**
- * Default quota warning threshold (500,000 = $1)
+ * Default balance warning threshold in the current display currency.
  */
-export const DEFAULT_QUOTA_WARNING_THRESHOLD = 500000
+export const DEFAULT_QUOTA_WARNING_THRESHOLD = 1
+
+export const QUOTA_WARNING_THRESHOLD_UNIT_AMOUNT = 'amount'
 
 /**
  * Notification methods

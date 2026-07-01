@@ -2,7 +2,6 @@ package model
 
 import (
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -82,7 +81,7 @@ func (user *User) SetAccessToken(token string) {
 func (user *User) GetSetting() dto.UserSetting {
 	setting := dto.UserSetting{}
 	if user.Setting != "" {
-		err := json.Unmarshal([]byte(user.Setting), &setting)
+		err := common.Unmarshal([]byte(user.Setting), &setting)
 		if err != nil {
 			common.SysLog("failed to unmarshal setting: " + err.Error())
 		}
@@ -91,7 +90,7 @@ func (user *User) GetSetting() dto.UserSetting {
 }
 
 func (user *User) SetSetting(setting dto.UserSetting) {
-	settingBytes, err := json.Marshal(setting)
+	settingBytes, err := common.Marshal(setting)
 	if err != nil {
 		common.SysLog("failed to marshal setting: " + err.Error())
 		return
@@ -152,7 +151,7 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 	// 普通用户不包含admin区域
 
 	// 转换为JSON字符串
-	configBytes, err := json.Marshal(defaultConfig)
+	configBytes, err := common.Marshal(defaultConfig)
 	if err != nil {
 		common.SysLog("生成默认边栏配置失败: " + err.Error())
 		return ""
@@ -890,6 +889,42 @@ func GetUserSetting(id int, fromDB bool) (settingMap dto.UserSetting, err error)
 		Setting: setting,
 	}
 	return userBase.GetSetting(), nil
+}
+
+func UpdateUserQuotaWarningNotifiedThreshold(id int, threshold int, subscription bool) error {
+	var safeSetting sql.NullString
+	if err := DB.Model(&User{}).Where("id = ?", id).Select("setting").Find(&safeSetting).Error; err != nil {
+		return err
+	}
+
+	setting := dto.UserSetting{}
+	if safeSetting.Valid && safeSetting.String != "" {
+		if err := common.Unmarshal([]byte(safeSetting.String), &setting); err != nil {
+			return err
+		}
+	}
+
+	if subscription {
+		if setting.SubscriptionWarningNotifiedThreshold == threshold {
+			return nil
+		}
+		setting.SubscriptionWarningNotifiedThreshold = threshold
+	} else {
+		if setting.QuotaWarningNotifiedThreshold == threshold {
+			return nil
+		}
+		setting.QuotaWarningNotifiedThreshold = threshold
+	}
+
+	settingBytes, err := common.Marshal(setting)
+	if err != nil {
+		return err
+	}
+	settingText := string(settingBytes)
+	if err := DB.Model(&User{}).Where("id = ?", id).Update("setting", settingText).Error; err != nil {
+		return err
+	}
+	return updateUserSettingCache(id, settingText)
 }
 
 func IncreaseUserQuota(id int, quota int, db bool) (err error) {

@@ -5,9 +5,9 @@ import (
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -36,7 +36,7 @@ func SendWebhookNotify(webhookURL string, secret string, data dto.Notify) error 
 	// 处理占位符
 	content := data.Content
 	for _, value := range data.Values {
-		content = fmt.Sprintf(content, value)
+		content = strings.Replace(content, dto.ContentValueParam, fmt.Sprintf("%v", value), 1)
 	}
 
 	// 构建 webhook 负载
@@ -49,7 +49,7 @@ func SendWebhookNotify(webhookURL string, secret string, data dto.Notify) error 
 	}
 
 	// 序列化负载
-	payloadBytes, err := json.Marshal(payload)
+	payloadBytes, err := common.Marshal(payload)
 	if err != nil {
 		return fmt.Errorf("failed to marshal webhook payload: %v", err)
 	}

@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -565,7 +564,7 @@ func generateDefaultSidebarConfig(userRole int) string {
 	// 普通用户不包含admin区域
 
 	// 转换为JSON字符串
-	configBytes, err := json.Marshal(defaultConfig)
+	configBytes, err := common.Marshal(defaultConfig)
 	if err != nil {
 		common.SysLog("生成默认边栏配置失败: " + err.Error())
 		return ""
@@ -755,12 +754,12 @@ func UpdateSelf(c *gin.Context) {
 
 	// 原有的用户信息更新逻辑
 	var user model.User
-	requestDataBytes, err := json.Marshal(requestData)
+	requestDataBytes, err := common.Marshal(requestData)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	err = json.Unmarshal(requestDataBytes, &user)
+	err = common.Unmarshal(requestDataBytes, &user)
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
@@ -1303,12 +1302,26 @@ func UpdateUserSetting(c *gin.Context) {
 	}
 
 	// 构建设置
-	settings := dto.UserSetting{
-		NotifyType:                       req.QuotaWarningType,
-		QuotaWarningThreshold:            req.QuotaWarningThreshold,
-		UpstreamModelUpdateNotifyEnabled: upstreamModelUpdateNotifyEnabled,
-		AcceptUnsetRatioModel:            req.AcceptUnsetModelRatioModel,
-		RecordIpLog:                      req.RecordIpLog,
+	settings := existingSettings
+	resetNotifyState := settings.NotifyType != req.QuotaWarningType ||
+		settings.QuotaWarningThreshold != req.QuotaWarningThreshold ||
+		settings.QuotaWarningThresholdUnit != dto.QuotaWarningThresholdUnitAmount
+	settings.NotifyType = req.QuotaWarningType
+	settings.QuotaWarningThreshold = req.QuotaWarningThreshold
+	settings.QuotaWarningThresholdUnit = dto.QuotaWarningThresholdUnitAmount
+	settings.UpstreamModelUpdateNotifyEnabled = upstreamModelUpdateNotifyEnabled
+	settings.AcceptUnsetRatioModel = req.AcceptUnsetModelRatioModel
+	settings.RecordIpLog = req.RecordIpLog
+	settings.WebhookUrl = ""
+	settings.WebhookSecret = ""
+	settings.NotificationEmail = ""
+	settings.BarkUrl = ""
+	settings.GotifyUrl = ""
+	settings.GotifyToken = ""
+	settings.GotifyPriority = 0
+	if resetNotifyState {
+		settings.QuotaWarningNotifiedThreshold = 0
+		settings.SubscriptionWarningNotifiedThreshold = 0
 	}
 
 	// 如果是webhook类型,添加webhook相关设置

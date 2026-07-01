@@ -94,8 +94,10 @@ export type NotifyType = 'email' | 'webhook' | 'bark' | 'gotify'
 export interface UserSettings {
   /** Notification type */
   notify_type?: NotifyType
-  /** Quota warning threshold */
+  /** Balance warning threshold */
   quota_warning_threshold?: number
+  /** Balance warning threshold unit */
+  quota_warning_threshold_unit?: 'amount' | 'quota'
   /** Webhook URL */
   webhook_url?: string
   /** Webhook secret */
@@ -135,6 +137,7 @@ export interface UpdateUserRequest {
 export interface UpdateUserSettingsRequest {
   notify_type?: string
   quota_warning_threshold?: number
+  quota_warning_threshold_unit?: 'amount' | 'quota'
   webhook_url?: string
   webhook_secret?: string
   notification_email?: string
