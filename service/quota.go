@@ -492,10 +492,12 @@ func quotaWarningAlreadySent(userSetting dto.UserSetting, threshold int, remaini
 	return userSetting.QuotaWarningNotifiedThreshold == threshold
 }
 
-func markQuotaWarningSent(userId int, threshold int, subscription bool) {
-	if err := model.UpdateUserQuotaWarningNotifiedThreshold(userId, threshold, subscription); err != nil {
+func markQuotaWarningSent(userId int, threshold int, subscription bool) bool {
+	marked, err := model.UpdateUserQuotaWarningNotifiedThreshold(userId, threshold, subscription)
+	if err != nil {
 		common.SysError(fmt.Sprintf("failed to update quota warning state for user %d: %s", userId, err.Error()))
 	}
+	return marked
 }
 
 func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQuota int) {
@@ -513,6 +515,9 @@ func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preCon
 		}
 		remaining := relayInfo.UserQuota - consumeQuota
 		if remaining < threshold && !quotaWarningAlreadySent(userSetting, threshold, int64(relayInfo.UserQuota), false) {
+			if !markQuotaWarningSent(relayInfo.UserId, threshold, false) {
+				return
+			}
 			prompt := "您的余额即将用尽"
 			topUpLink := PaymentReturnURL("/console/topup")
 
@@ -543,7 +548,6 @@ func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preCon
 				common.SysError(fmt.Sprintf("failed to send quota notify to user %d: %s", relayInfo.UserId, err.Error()))
 				return
 			}
-			markQuotaWarningSent(relayInfo.UserId, threshold, false)
 		}
 	})
 }
@@ -567,6 +571,9 @@ func checkAndSendSubscriptionQuotaNotify(relayInfo *relaycommon.RelayInfo) {
 		}
 		remainingBefore := relayInfo.SubscriptionAmountTotal - relayInfo.SubscriptionAmountUsedAfterPreConsume
 		if quotaWarningAlreadySent(userSetting, threshold, remainingBefore, true) {
+			return
+		}
+		if !markQuotaWarningSent(relayInfo.UserId, threshold, true) {
 			return
 		}
 
@@ -595,6 +602,5 @@ func checkAndSendSubscriptionQuotaNotify(relayInfo *relaycommon.RelayInfo) {
 			common.SysError(fmt.Sprintf("failed to send subscription quota notify to user %d: %s", relayInfo.UserId, err.Error()))
 			return
 		}
-		markQuotaWarningSent(relayInfo.UserId, threshold, true)
 	})
 }

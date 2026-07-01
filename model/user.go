@@ -891,40 +891,64 @@ func GetUserSetting(id int, fromDB bool) (settingMap dto.UserSetting, err error)
 	return userBase.GetSetting(), nil
 }
 
-func UpdateUserQuotaWarningNotifiedThreshold(id int, threshold int, subscription bool) error {
-	var safeSetting sql.NullString
-	if err := DB.Model(&User{}).Where("id = ?", id).Select("setting").Find(&safeSetting).Error; err != nil {
-		return err
+func UpdateUserQuotaWarningNotifiedThreshold(id int, threshold int, subscription bool) (bool, error) {
+	if threshold <= 0 {
+		return false, nil
 	}
 
-	setting := dto.UserSetting{}
-	if safeSetting.Valid && safeSetting.String != "" {
-		if err := common.Unmarshal([]byte(safeSetting.String), &setting); err != nil {
-			return err
+	for attempts := 0; attempts < 3; attempts++ {
+		var safeSetting sql.NullString
+		result := DB.Model(&User{}).Where("id = ?", id).Select("setting").Find(&safeSetting)
+		if result.Error != nil {
+			return false, result.Error
 		}
+		if result.RowsAffected == 0 {
+			return false, nil
+		}
+
+		setting := dto.UserSetting{}
+		if safeSetting.Valid && safeSetting.String != "" {
+			if err := common.Unmarshal([]byte(safeSetting.String), &setting); err != nil {
+				return false, err
+			}
+		}
+
+		if subscription {
+			if setting.SubscriptionWarningNotifiedThreshold == threshold {
+				return false, nil
+			}
+			setting.SubscriptionWarningNotifiedThreshold = threshold
+		} else {
+			if setting.QuotaWarningNotifiedThreshold == threshold {
+				return false, nil
+			}
+			setting.QuotaWarningNotifiedThreshold = threshold
+		}
+
+		settingBytes, err := common.Marshal(setting)
+		if err != nil {
+			return false, err
+		}
+		settingText := string(settingBytes)
+
+		updateQuery := DB.Model(&User{}).Where("id = ?", id)
+		if safeSetting.Valid {
+			updateQuery = updateQuery.Where("setting = ?", safeSetting.String)
+		} else {
+			updateQuery = updateQuery.Where("setting IS NULL")
+		}
+
+		result = updateQuery.Update("setting", settingText)
+		if result.Error != nil {
+			return false, result.Error
+		}
+		if result.RowsAffected == 0 {
+			continue
+		}
+		return true, updateUserSettingCache(id, settingText)
 	}
 
-	if subscription {
-		if setting.SubscriptionWarningNotifiedThreshold == threshold {
-			return nil
-		}
-		setting.SubscriptionWarningNotifiedThreshold = threshold
-	} else {
-		if setting.QuotaWarningNotifiedThreshold == threshold {
-			return nil
-		}
-		setting.QuotaWarningNotifiedThreshold = threshold
-	}
-
-	settingBytes, err := common.Marshal(setting)
-	if err != nil {
-		return err
-	}
-	settingText := string(settingBytes)
-	if err := DB.Model(&User{}).Where("id = ?", id).Update("setting", settingText).Error; err != nil {
-		return err
-	}
-	return updateUserSettingCache(id, settingText)
+	return false, nil
 }
 
 func IncreaseUserQuota(id int, quota int, db bool) (err error) {
