@@ -27,7 +27,7 @@ export const MAX_CHART_TREND_POINTS = 7
 export const DEFAULT_DASHBOARD_CHART_PREFERENCES: DashboardChartPreferences = {
   consumptionDistributionChart: 'bar',
   modelAnalyticsChart: 'trend',
-  defaultTimeRangePreset: 'last_24_hours',
+  defaultTimeRangePreset: 'today',
   defaultTimeGranularity: DEFAULT_TIME_GRANULARITY,
 }
 

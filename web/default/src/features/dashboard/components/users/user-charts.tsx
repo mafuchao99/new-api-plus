@@ -21,18 +21,18 @@ import { useQuery } from '@tanstack/react-query'
 import { VChart } from '@visactor/react-vchart'
 import { Users, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { getRollingDateRange, type TimeGranularity } from '@/lib/time'
+import {
+  getPresetDateRange,
+  type TimeGranularity,
+  type TimeRangePreset,
+} from '@/lib/time'
 import { VCHART_OPTION } from '@/lib/vchart'
 import { useTheme } from '@/context/theme-provider'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { getUserQuotaDataByUsers } from '@/features/dashboard/api'
 import { TIME_GRANULARITY_OPTIONS } from '@/features/dashboard/constants'
-import {
-  getDefaultDays,
-  saveGranularity,
-  processUserChartData,
-} from '@/features/dashboard/lib'
+import { saveGranularity, processUserChartData } from '@/features/dashboard/lib'
 import type {
   ProcessedUserChartData,
   UserChartsFilters,
@@ -61,9 +61,11 @@ const USER_CHARTS: {
 
 const TOP_USER_LIMIT_OPTIONS = [5, 10, 20, 50]
 const USER_TIME_RANGE_OPTIONS = [
-  { label: '24 Hours', days: 1 },
-  { label: 'This Week', days: 7 },
-  { label: 'This Month', days: 30 },
+  { label: 'Yesterday', value: 'yesterday' },
+  { label: 'Today', value: 'today' },
+  { label: '24 Hours', value: 'last_24_hours' },
+  { label: 'This Week', value: 'this_week' },
+  { label: 'This Month', value: 'this_month' },
 ] as const
 
 interface UserChartsProps {
@@ -87,7 +89,7 @@ export function UserCharts(props: UserChartsProps) {
   const onFiltersChange = props.onFiltersChange
 
   const timeRange = useMemo(() => {
-    const { start, end } = getRollingDateRange(selectedRange)
+    const { start, end } = getPresetDateRange(selectedRange)
     return {
       start_timestamp: Math.floor(start.getTime() / 1000),
       end_timestamp: Math.floor(end.getTime() / 1000),
@@ -95,8 +97,8 @@ export function UserCharts(props: UserChartsProps) {
   }, [selectedRange])
 
   const handleRangeChange = useCallback(
-    (days: number) => {
-      onFiltersChange({ ...props.filters, selectedRange: days })
+    (range: TimeRangePreset) => {
+      onFiltersChange({ ...props.filters, selectedRange: range })
     },
     [onFiltersChange, props.filters]
   )
@@ -107,7 +109,6 @@ export function UserCharts(props: UserChartsProps) {
       onFiltersChange({
         ...props.filters,
         timeGranularity: g,
-        selectedRange: getDefaultDays(g),
       })
     },
     [onFiltersChange, props.filters]
@@ -158,15 +159,15 @@ export function UserCharts(props: UserChartsProps) {
     <div className='space-y-3'>
       <div className='flex items-center gap-1.5 overflow-x-auto pb-1 sm:gap-2'>
         <Tabs
-          value={String(selectedRange)}
-          onValueChange={(value) => handleRangeChange(Number(value))}
+          value={selectedRange}
+          onValueChange={(value) => handleRangeChange(value as TimeRangePreset)}
           className='shrink-0'
         >
           <TabsList>
             {USER_TIME_RANGE_OPTIONS.map((preset) => (
               <TabsTrigger
-                key={preset.days}
-                value={String(preset.days)}
+                key={preset.value}
+                value={preset.value}
                 className='px-2.5 text-xs'
               >
                 {t(preset.label)}
