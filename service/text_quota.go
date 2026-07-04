@@ -59,8 +59,12 @@ type textQuotaSummary struct {
 }
 
 const usageLogRequestBodyPreviewLimit = 64 * 1024
+const usageLogRequestContentEnabled = false
 
 func RequestContentLogPreview(ctx *gin.Context, request dto.Request) string {
+	if !usageLogRequestContentEnabled {
+		return ""
+	}
 	if content := usageLogUserContentFromRequest(request); content != "" {
 		return limitUsageLogRequestContent(content)
 	}
