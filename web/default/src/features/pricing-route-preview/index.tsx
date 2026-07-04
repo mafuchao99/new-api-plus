@@ -257,8 +257,13 @@ function OfficialPricePanel(props: { items: RoutePricingPriceItem[] }) {
 
   return (
     <div className='rounded-lg bg-muted/40 p-3'>
-      <div className='text-muted-foreground mb-2 text-xs font-medium'>
-        {t('Official price')}
+      <div className='mb-2'>
+        <div className='text-muted-foreground text-xs font-medium'>
+          {t('Official base price')}
+        </div>
+        <p className='text-muted-foreground/70 mt-1 text-[11px] leading-relaxed'>
+          {t('Reference price before route multipliers are applied.')}
+        </p>
       </div>
       <div
         className={cn(
@@ -293,8 +298,11 @@ function RouteLineRow(props: {
       ? formatRatio(props.line.ratio)
       : null
   const billingLabel = ratioLabel
-    ? `${t('Ratio')} ${ratioLabel}`
+    ? `${t('Route multiplier')} ${ratioLabel}`
     : t(getBillingModeLabelKey(props.line.billing_mode))
+  const routePriceHint = ratioLabel
+    ? t('Route price = official base price x route multiplier.')
+    : t('Charged according to this route rule.')
 
   return (
     <div className='border-t px-4 py-4 text-sm'>
@@ -328,12 +336,15 @@ function RouteLineRow(props: {
 
         <div className='rounded-md bg-muted/50 px-3 py-2 lg:min-w-[240px] lg:text-right'>
           <div className='mb-1 text-xs text-muted-foreground'>
-            {t('Route price')}
+            {t('Estimated route price')}
           </div>
           <PriceBreakdown
             items={props.line.price_items}
             align='right'
           />
+          <p className='text-muted-foreground/60 mt-1.5 text-[11px] leading-relaxed'>
+            {routePriceHint}
+          </p>
         </div>
       </div>
     </div>
@@ -505,25 +516,25 @@ export function PricingRoutePreview() {
             icon={<Boxes className='size-4' />}
             label={t('Visible models')}
             value={`${filteredModels.length} / ${routePricingModels.length}`}
-            hint={t('Models are grouped first, then routes are shown under each model.')}
+            hint={t('Pick a model first, then compare its available routes.')}
           />
           <SummaryMetric
             icon={<RouteIcon className='size-4' />}
             label={t('Route choices')}
             value={String(routePricingData.total_routes)}
-            hint={t('One model can expose multiple user-facing route choices.')}
+            hint={t('Some models offer more than one route for different needs.')}
           />
           <SummaryMetric
             icon={<Gauge className='size-4' />}
             label={t('Lowest ratio')}
             value={getLowestRatio(routePricingModels)}
-            hint={t('Ratio lines still show the effective route multiplier clearly.')}
+            hint={t('Lower multipliers usually mean lower estimated route prices.')}
           />
           <SummaryMetric
             icon={<ShieldCheck className='size-4' />}
             label={t('Per-request rules')}
             value={String(routePricingData.per_request_routes)}
-            hint={t('Cheap channels can keep model-specific per-request pricing.')}
+            hint={t('Per-request routes show the price for each request directly.')}
           />
         </div>
 

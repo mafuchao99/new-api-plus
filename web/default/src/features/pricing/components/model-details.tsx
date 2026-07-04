@@ -651,7 +651,7 @@ function PriceSection(props: {
     if (dynamicSummary.isSpecialExpression) {
       return (
         <section>
-          <SectionTitle>{t('Base Price')}</SectionTitle>
+          <SectionTitle>{t('Official base price')}</SectionTitle>
           <div className='rounded-lg border border-amber-200/70 bg-amber-50/70 p-3 dark:border-amber-500/20 dark:bg-amber-500/10'>
             <div className='text-sm font-medium text-amber-800 dark:text-amber-200'>
               {t('Special billing expression')}
@@ -674,7 +674,10 @@ function PriceSection(props: {
 
     return (
       <section>
-        <SectionTitle>{t('Base Price')}</SectionTitle>
+        <SectionTitle>{t('Official base price')}</SectionTitle>
+        <p className='text-muted-foreground/70 -mt-1 mb-3 text-xs leading-relaxed'>
+          {t('Reference price before group ratios are applied.')}
+        </p>
         {dynamicSummary.primaryEntries.length > 0 ? (
           <div className='grid grid-cols-2 gap-2'>
             {dynamicSummary.primaryEntries.map((entry) => (
@@ -728,7 +731,10 @@ function PriceSection(props: {
   if (!isTokenBased) {
     return (
       <section>
-        <SectionTitle>{t('Base Price')}</SectionTitle>
+        <SectionTitle>{t('Official base price')}</SectionTitle>
+        <p className='text-muted-foreground/70 -mt-1 mb-3 text-xs leading-relaxed'>
+          {t('Reference price before group ratios are applied.')}
+        </p>
         <div className='flex items-baseline justify-between'>
           <span className='text-muted-foreground text-sm'>
             {t('Per request')}
@@ -769,7 +775,10 @@ function PriceSection(props: {
 
   return (
     <section>
-      <SectionTitle>{t('Base Price')}</SectionTitle>
+      <SectionTitle>{t('Official base price')}</SectionTitle>
+      <p className='text-muted-foreground/70 -mt-1 mb-3 text-xs leading-relaxed'>
+        {t('Reference price before group ratios are applied.')}
+      </p>
       <div className='grid grid-cols-2 gap-2'>
         {primaryPriceTypes.map((item) => (
           <div key={item.type} className='bg-muted/20 rounded-lg border p-3'>
@@ -1121,6 +1130,9 @@ function GroupPricingSection(props: {
         ]}
       />
       <div className='-mx-4 sm:mx-0'>
+        <p className='text-muted-foreground/60 mt-1.5 px-4 text-[10px] leading-relaxed sm:px-0'>
+          {t('Group price = official base price x group ratio.')}
+        </p>
         {isTokenBased && (
           <p className='text-muted-foreground/40 mt-1.5 px-4 text-[10px] sm:px-0'>
             {t('Prices shown per')} {tokenUnitLabel} tokens

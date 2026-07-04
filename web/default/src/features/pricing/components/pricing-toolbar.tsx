@@ -200,8 +200,8 @@ export function PricingToolbar(props: PricingToolbarProps) {
           <div className='hidden items-center gap-2 sm:flex'>
             <SegmentedControl
               options={[
-                { value: 'standard', label: t('Standard') },
-                { value: 'recharge', label: t('Recharge') },
+                { value: 'standard', label: t('Quota value') },
+                { value: 'recharge', label: t('Recharge cost') },
               ]}
               value={props.showRechargePrice ? 'recharge' : 'standard'}
               onChange={handleRechargePriceChange}
@@ -270,6 +270,9 @@ export function PricingToolbar(props: PricingToolbarProps) {
           />
         </div>
       </div>
+      <p className='text-muted-foreground/60 mt-2 text-[11px] leading-relaxed'>
+        {t('Prices in the list are estimated settlement prices after model and group multipliers.')}
+      </p>
 
       <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}>
         <SheetContent
