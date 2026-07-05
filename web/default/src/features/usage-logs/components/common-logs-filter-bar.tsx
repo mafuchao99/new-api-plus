@@ -20,7 +20,13 @@ import { useState, useCallback, useMemo } from 'react'
 import { useQueryClient, useIsFetching } from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import type { Table } from '@tanstack/react-table'
-import { Download, Eye, EyeOff, KeyRound, Loader2 } from 'lucide-react'
+import {
+  Download,
+  Eye,
+  EyeOff,
+  KeyRound,
+  Loader2,
+} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
 import { useIsAdmin } from '@/hooks/use-admin'
@@ -58,6 +64,7 @@ import {
   LogsFilterInput,
   LogsFilterToolbar,
 } from './logs-filter-toolbar'
+import { ChannelFilterSelector } from './channel-filter-selector'
 import { useUsageLogsContext } from './usage-logs-provider'
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
@@ -518,10 +525,10 @@ export function CommonLogsFilterBar<TData>(
       )}
       {isAdmin && (
         <LogsFilterField>
-          <LogsFilterInput
-            placeholder={t('Channel ID')}
+          <ChannelFilterSelector
             value={filters.channel || ''}
-            onChange={(e) => handleChange('channel', e.target.value)}
+            sensitiveVisible={sensitiveVisible}
+            onChange={(value) => handleChange('channel', value)}
             onKeyDown={handleKeyDown}
           />
         </LogsFilterField>
