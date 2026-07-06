@@ -7,6 +7,7 @@ import (
 
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/types"
@@ -365,6 +366,38 @@ func TestComposeTieredTextQuotaKeepsToolCallSurcharges(t *testing.T) {
 
 	require.Equal(t, int64(13000), summary.ToolCallSurchargeQuota.Round(0).IntPart())
 	require.Equal(t, 14000, quota)
+}
+
+func TestCalculateTextQuotaSummaryRouteLinePerRequestSkipsToolCallSurcharges(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	w := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(w)
+	ctx.Set("image_generation_call", true)
+	ctx.Set("image_generation_call_quality", "low")
+	ctx.Set("image_generation_call_size", "1024x1024")
+
+	relayInfo := &relaycommon.RelayInfo{
+		OriginModelName: "gpt-image-1",
+		PriceData: types.PriceData{
+			ModelPrice:           0.065,
+			UsePrice:             true,
+			GroupRatioInfo:       types.GroupRatioInfo{GroupRatio: 1},
+			RouteLineBillingMode: model.RouteLineBillingModePerRequest,
+			RouteLinePrice:       0.065,
+		},
+		StartTime: time.Now(),
+	}
+
+	usage := &dto.Usage{
+		PromptTokens:     100,
+		CompletionTokens: 50,
+		TotalTokens:      150,
+	}
+
+	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
+
+	require.True(t, summary.ToolCallSurchargeQuota.IsZero())
+	require.Equal(t, 32500, summary.Quota)
 }
 
 func TestComposeTieredTextQuotaFallbackKeepsToolCallSurcharges(t *testing.T) {
