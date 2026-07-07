@@ -356,8 +356,12 @@ func (a *TaskAdaptor) EstimateBilling(c *gin.Context, info *relaycommon.RelayInf
 		return nil
 	}
 
+	duration := aliReq.Parameters.Duration
+	if duration > relaycommon.MaxTaskDurationSeconds {
+		duration = relaycommon.MaxTaskDurationSeconds
+	}
 	otherRatios := map[string]float64{
-		"seconds": float64(aliReq.Parameters.Duration),
+		"seconds": float64(duration),
 	}
 	ratios, err := ProcessAliOtherRatios(aliReq)
 	if err != nil {

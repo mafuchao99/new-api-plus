@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/dto"
 	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
@@ -67,5 +69,52 @@ func TestGetAndValidOpenAIImageRequestMultipartStream(t *testing.T) {
 		_, err := GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesEdits)
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "invalid stream value")
+	})
+}
+
+func TestGetAndValidOpenAIImageRequestRejectsImageCountOverflow(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	t.Run("json n above limit", func(t *testing.T) {
+		body := strings.NewReader(`{"model":"gpt-image-1","prompt":"draw","n":129}`)
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", body)
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		_, err := GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesGenerations)
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "n must be an integer")
+	})
+
+	t.Run("json n at limit", func(t *testing.T) {
+		body := strings.NewReader(`{"model":"gpt-image-1","prompt":"draw","n":128}`)
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/generations", body)
+		c.Request.Header.Set("Content-Type", "application/json")
+
+		req, err := GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesGenerations)
+
+		require.NoError(t, err)
+		require.NotNil(t, req.N)
+		require.Equal(t, uint(dto.MaxImageN), *req.N)
+	})
+
+	t.Run("multipart n above limit", func(t *testing.T) {
+		var body bytes.Buffer
+		writer := multipart.NewWriter(&body)
+		require.NoError(t, writer.WriteField("model", "gpt-image-1"))
+		require.NoError(t, writer.WriteField("prompt", "edit"))
+		require.NoError(t, writer.WriteField("n", "129"))
+		require.NoError(t, writer.Close())
+
+		c, _ := gin.CreateTestContext(httptest.NewRecorder())
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/images/edits", &body)
+		c.Request.Header.Set("Content-Type", writer.FormDataContentType())
+
+		_, err := GetAndValidOpenAIImageRequest(c, relayconstant.RelayModeImagesEdits)
+
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "n must be an integer")
 	})
 }

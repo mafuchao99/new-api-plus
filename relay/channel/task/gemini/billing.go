@@ -3,6 +3,8 @@ package gemini
 import (
 	"strconv"
 	"strings"
+
+	relaycommon "github.com/QuantumNous/new-api/relay/common"
 )
 
 // ParseVeoDurationSeconds extracts durationSeconds from metadata.
@@ -50,15 +52,15 @@ func ResolveVeoDuration(metadata map[string]any, stdDuration int, stdSeconds str
 	if metadata != nil {
 		if _, exists := metadata["durationSeconds"]; exists {
 			if d := ParseVeoDurationSeconds(metadata); d > 0 {
-				return d
+				return min(d, relaycommon.MaxTaskDurationSeconds)
 			}
 		}
 	}
 	if stdDuration > 0 {
-		return stdDuration
+		return min(stdDuration, relaycommon.MaxTaskDurationSeconds)
 	}
 	if s, err := strconv.Atoi(stdSeconds); err == nil && s > 0 {
-		return s
+		return min(s, relaycommon.MaxTaskDurationSeconds)
 	}
 	return 8
 }

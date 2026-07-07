@@ -2,6 +2,7 @@ package helper
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -72,7 +73,7 @@ func resolveRouteLineBillingConfig(c *gin.Context, modelName string) (*routeLine
 	if line.DefaultRatio != nil {
 		defaultRatio = *line.DefaultRatio
 	}
-	if defaultRatio < 0 {
+	if defaultRatio < 0 || math.IsNaN(defaultRatio) || math.IsInf(defaultRatio, 0) {
 		return nil, fmt.Errorf("线路 %s 默认倍率不能小于 0", line.Name)
 	}
 
@@ -99,12 +100,12 @@ func resolveRouteLineBillingConfig(c *gin.Context, modelName string) (*routeLine
 	cfg.ModelRule = routeLineModelRuleModelPrice
 	switch cfg.BillingMode {
 	case model.RouteLineBillingModeRatio:
-		if price.Ratio == nil || *price.Ratio < 0 {
+		if price.Ratio == nil || *price.Ratio < 0 || math.IsNaN(*price.Ratio) || math.IsInf(*price.Ratio, 0) {
 			return nil, fmt.Errorf("线路 %s 的模型 %s 倍率未正确配置", line.Name, price.ModelName)
 		}
 		cfg.Ratio = *price.Ratio
 	case model.RouteLineBillingModePerRequest:
-		if price.PerRequestPrice == nil || *price.PerRequestPrice < 0 {
+		if price.PerRequestPrice == nil || *price.PerRequestPrice < 0 || math.IsNaN(*price.PerRequestPrice) || math.IsInf(*price.PerRequestPrice, 0) {
 			return nil, fmt.Errorf("线路 %s 的模型 %s 按次价格未正确配置", line.Name, price.ModelName)
 		}
 		cfg.Ratio = 0
@@ -187,7 +188,7 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 	}
 
 	if routeLineBilling != nil && routeLineBilling.BillingMode == model.RouteLineBillingModePerRequest {
-		preConsumedQuota := int(routeLineBilling.Price * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+		preConsumedQuota := common.QuotaFromFloat(routeLineBilling.Price * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
 		freeModel := false
 		if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
 			if groupRatioInfo.GroupRatio == 0 || routeLineBilling.Price == 0 {
@@ -253,13 +254,13 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		audioRatio = ratio_setting.GetAudioRatio(info.OriginModelName)
 		audioCompletionRatio = ratio_setting.GetAudioCompletionRatio(info.OriginModelName)
 		ratio := modelRatio * groupRatioInfo.GroupRatio
-		preConsumedQuota = int(float64(preConsumedTokens) * ratio)
+		preConsumedQuota = common.QuotaFromFloat(float64(preConsumedTokens) * ratio)
 	} else {
 		if meta.ImagePriceRatio != 0 {
 			modelPrice = modelPrice * meta.ImagePriceRatio
 		}
 		modelPrice = modelPrice * routeRatio
-		preConsumedQuota = int(modelPrice * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+		preConsumedQuota = common.QuotaFromFloat(modelPrice * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
 	}
 
 	// check if free model pre-consume is disabled
@@ -309,6 +310,13 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 // ModelPriceHelperPerCall 按次/按量计费的 PriceHelper (MJ、Task)
 func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types.PriceData, error) {
 	groupRatioInfo := HandleGroupRatio(c, info)
+	routeLineBilling, err := resolveRouteLineBillingConfig(c, info.OriginModelName)
+	if err != nil {
+		return types.PriceData{}, err
+	}
+	if routeLineBilling != nil && routeLineBilling.BillingMode == model.RouteLineBillingModeExpression {
+		return types.PriceData{}, fmt.Errorf("线路 %s 的模型 %s 表达式计费暂不支持按次任务", routeLineBilling.RouteLineName, info.OriginModelName)
+	}
 
 	modelPrice, success := ratio_setting.GetModelPrice(info.OriginModelName, true)
 	usePrice := success
@@ -333,11 +341,24 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 		}
 	}
 
+	routeRatio := 1.0
+	if routeLineBilling != nil {
+		switch routeLineBilling.BillingMode {
+		case model.RouteLineBillingModeRatio:
+			routeRatio = routeLineBilling.Ratio
+		case model.RouteLineBillingModePerRequest:
+			modelPrice = routeLineBilling.Price
+			modelRatio = 0
+			usePrice = true
+		}
+	}
+
 	var quota int
 	freeModel := false
 
 	if usePrice {
-		quota = int(modelPrice * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+		modelPrice = modelPrice * routeRatio
+		quota = common.QuotaFromFloat(modelPrice * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
 		if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
 			if groupRatioInfo.GroupRatio == 0 || modelPrice == 0 {
 				quota = 0
@@ -346,7 +367,8 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 		}
 	} else {
 		// 按量计费：以模型倍率的一半作为预扣额度
-		quota = int(modelRatio / 2 * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+		modelRatio = modelRatio * routeRatio
+		quota = common.QuotaFromFloat(modelRatio / 2 * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
 		modelPrice = -1
 		if !operation_setting.GetQuotaSetting().EnableFreeModelPreConsume {
 			if groupRatioInfo.GroupRatio == 0 || modelRatio == 0 {
@@ -364,6 +386,7 @@ func ModelPriceHelperPerCall(c *gin.Context, info *relaycommon.RelayInfo) (types
 		Quota:          quota,
 		GroupRatioInfo: groupRatioInfo,
 	}
+	applyRouteLineBillingConfig(&priceData, routeLineBilling)
 	return priceData, nil
 }
 

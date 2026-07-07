@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"math"
 	"strconv"
 	"strings"
 
@@ -21,14 +22,14 @@ type routeLineChannelDTO struct {
 }
 
 type routeLineBindingDTO struct {
-	Id          int                 `json:"id"`
-	ChannelId   int                 `json:"channel_id"`
-	RouteLineId int                 `json:"route_line_id"`
-	IsDefault   bool                `json:"is_default"`
-	Enabled     bool                `json:"enabled"`
-	Priority    int                 `json:"priority"`
-	Weight      int                 `json:"weight"`
-	Description string              `json:"description"`
+	Id          int                  `json:"id"`
+	ChannelId   int                  `json:"channel_id"`
+	RouteLineId int                  `json:"route_line_id"`
+	IsDefault   bool                 `json:"is_default"`
+	Enabled     bool                 `json:"enabled"`
+	Priority    int                  `json:"priority"`
+	Weight      int                  `json:"weight"`
+	Description string               `json:"description"`
 	Channel     *routeLineChannelDTO `json:"channel,omitempty"`
 }
 
@@ -55,7 +56,7 @@ type routeLineDTO struct {
 	Code         string                      `json:"code"`
 	Name         string                      `json:"name"`
 	Description  string                      `json:"description"`
-	DefaultRatio *float64                   `json:"default_ratio,omitempty"`
+	DefaultRatio *float64                    `json:"default_ratio,omitempty"`
 	Visible      bool                        `json:"visible"`
 	Enabled      bool                        `json:"enabled"`
 	Sort         int                         `json:"sort"`
@@ -165,12 +166,12 @@ func CreateRouteSlot(c *gin.Context) {
 		enabled = *req.Enabled
 	}
 	slot := model.RouteSlot{
-		Code:               code,
-		Name:               name,
-		Description:        strings.TrimSpace(req.Description),
-		Enabled:            enabled,
-		Sort:               req.Sort,
-		Remark:             strings.TrimSpace(req.Remark),
+		Code:        code,
+		Name:        name,
+		Description: strings.TrimSpace(req.Description),
+		Enabled:     enabled,
+		Sort:        req.Sort,
+		Remark:      strings.TrimSpace(req.Remark),
 	}
 	if err := model.CreateRouteSlot(&slot); err != nil {
 		common.ApiError(c, err)
@@ -365,14 +366,14 @@ func SaveRouteLineModelPrice(c *gin.Context) {
 	}
 	switch billingMode {
 	case model.RouteLineBillingModeRatio:
-		if req.Ratio == nil || *req.Ratio < 0 {
+		if req.Ratio == nil || *req.Ratio < 0 || math.IsNaN(*req.Ratio) || math.IsInf(*req.Ratio, 0) {
 			common.ApiErrorMsg(c, "ratio must be greater than or equal to 0")
 			return
 		}
 		req.PerRequestPrice = nil
 		req.PriceExpression = nil
 	case model.RouteLineBillingModePerRequest:
-		if req.PerRequestPrice == nil || *req.PerRequestPrice < 0 {
+		if req.PerRequestPrice == nil || *req.PerRequestPrice < 0 || math.IsNaN(*req.PerRequestPrice) || math.IsInf(*req.PerRequestPrice, 0) {
 			common.ApiErrorMsg(c, "per-request price must be greater than or equal to 0")
 			return
 		}
@@ -641,7 +642,7 @@ func validateSlotDefaultRouteLine(c *gin.Context, slotId int, routeLineId *int) 
 }
 
 func validateDefaultRatio(c *gin.Context, ratio *float64) bool {
-	if ratio != nil && *ratio < 0 {
+	if ratio != nil && (*ratio < 0 || math.IsNaN(*ratio) || math.IsInf(*ratio, 0)) {
 		common.ApiErrorMsg(c, "default ratio must be greater than or equal to 0")
 		return false
 	}

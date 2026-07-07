@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
+	"github.com/stretchr/testify/require"
 )
 
 // ---------------------------------------------------------------------------
@@ -291,12 +292,15 @@ func TestQuotaRound(t *testing.T) {
 		{999.4999, 999},
 		{999.5, 1000},
 		{1e9 + 0.5, 1e9 + 1},
+		{math.NaN(), 0},
+		{math.Inf(1), math.MaxInt32},
+		{math.Inf(-1), math.MinInt32},
+		{float64(math.MaxInt32) * 2, math.MaxInt32},
+		{float64(math.MinInt32) * 2, math.MinInt32},
 	}
 	for _, tt := range tests {
 		got := billingexpr.QuotaRound(tt.in)
-		if got != tt.want {
-			t.Errorf("QuotaRound(%f) = %d, want %d", tt.in, got, tt.want)
-		}
+		require.Equal(t, tt.want, got)
 	}
 }
 
