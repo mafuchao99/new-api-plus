@@ -149,9 +149,16 @@ function BillingBreakdown(props: {
   const { t } = useTranslation()
   const { log, other, isAdmin } = props
   const isPerCall = isPerCallBilling(other.model_price)
-  const isClaude = other.claude === true
   const isTieredExpr = other.billing_mode === 'tiered_expr'
   const tieredSummary = getTieredBillingSummary(other)
+  const cacheReadTokens = other.cache_tokens || 0
+  const cacheWriteTokens = other.cache_creation_tokens || 0
+  const cacheWriteTokens5m = other.cache_creation_tokens_5m || 0
+  const cacheWriteTokens1h = other.cache_creation_tokens_1h || 0
+  const cacheWriteBaseTokens = Math.max(
+    0,
+    cacheWriteTokens - cacheWriteTokens5m - cacheWriteTokens1h
+  )
 
   const rows: Array<{ label: string; value: string }> = []
   const priceOpts = { digitsLarge: 4, digitsSmall: 6, abbreviate: false }
@@ -252,37 +259,47 @@ function BillingBreakdown(props: {
     })
   }
 
-  if (!isTieredExpr && isClaude && hasAnyCacheTokens(other)) {
-    if (other.cache_ratio != null && other.cache_ratio !== 1) {
+  if (!isTieredExpr && hasAnyCacheTokens(other)) {
+    if (
+      cacheReadTokens > 0 &&
+      other.cache_ratio != null &&
+      Number.isFinite(other.cache_ratio)
+    ) {
       rows.push({
         label: t('Cache Read'),
         value: `${fmtPrice(baseInputUSD * other.cache_ratio)}/M`,
       })
     }
     if (
+      (cacheWriteBaseTokens > 0 ||
+        (cacheWriteTokens > 0 &&
+          cacheWriteTokens5m === 0 &&
+          cacheWriteTokens1h === 0)) &&
       other.cache_creation_ratio != null &&
-      other.cache_creation_ratio !== 1
+      Number.isFinite(other.cache_creation_ratio)
     ) {
       rows.push({
-        label: t('Cache Creation'),
+        label: t('Cache Write'),
         value: `${fmtPrice(baseInputUSD * other.cache_creation_ratio)}/M`,
       })
     }
     if (
+      cacheWriteTokens5m > 0 &&
       other.cache_creation_ratio_5m != null &&
-      other.cache_creation_ratio_5m !== 0
+      Number.isFinite(other.cache_creation_ratio_5m)
     ) {
       rows.push({
-        label: t('Cache Creation (5m)'),
+        label: t('Cache Write (5m)'),
         value: `${fmtPrice(baseInputUSD * other.cache_creation_ratio_5m)}/M`,
       })
     }
     if (
+      cacheWriteTokens1h > 0 &&
       other.cache_creation_ratio_1h != null &&
-      other.cache_creation_ratio_1h !== 0
+      Number.isFinite(other.cache_creation_ratio_1h)
     ) {
       rows.push({
-        label: t('Cache Creation (1h)'),
+        label: t('Cache Write (1h)'),
         value: `${fmtPrice(baseInputUSD * other.cache_creation_ratio_1h)}/M`,
       })
     }
