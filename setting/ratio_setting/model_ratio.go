@@ -513,7 +513,10 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 				}
 				return 6, true
 			}
-			return 8, true
+			// Keep 8x as the fallback for unconfigured future GPT-5 models.
+			// It must not override an explicit CompletionRatio configured for a
+			// custom model such as gpt-5.6-sol.
+			return 8, false
 		}
 		// gpt-4.5-preview匹配
 		if strings.HasPrefix(name, "gpt-4.5-preview") {
