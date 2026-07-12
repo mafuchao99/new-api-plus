@@ -304,12 +304,26 @@ func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 	require.True(t, applied)
 	require.Equal(t, 0.2, mergedOverride["temperature"])
 
+	requestHeaders := map[string]string{
+		"Originator":                             "Codex CLI",
+		"Session_id":                             "session-underscore",
+		"Thread_id":                              "thread-underscore",
+		"Session-Id":                             "session-hyphen",
+		"Thread-Id":                              "thread-hyphen",
+		"X-Client-Request-Id":                    "request-123",
+		"User-Agent":                             "codex-cli-test",
+		"X-Codex-Beta-Features":                  "responses-lite",
+		"X-Codex-Turn-State":                     "turn-state",
+		"X-Codex-Turn-Metadata":                  "turn-metadata",
+		"X-Codex-Window-Id":                      "window-123",
+		"X-Codex-Parent-Thread-Id":               "parent-thread-123",
+		"X-OpenAI-Subagent":                      "subagent-123",
+		"X-OpenAI-Memgen-Request":                "memgen-123",
+		"X-ResponsesAPI-Include-Timing-Metrics":  "true",
+		"X-OpenAI-Internal-Codex-Responses-Lite": "true",
+	}
 	info := &relaycommon.RelayInfo{
-		RequestHeaders: map[string]string{
-			"Originator": "Codex CLI",
-			"Session_id": "sess-123",
-			"User-Agent": "codex-cli-test",
-		},
+		RequestHeaders: requestHeaders,
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ParamOverride: mergedOverride,
 			HeadersOverride: map[string]interface{}{
@@ -323,12 +337,7 @@ func TestChannelAffinityHitCodexTemplatePassHeadersEffective(t *testing.T) {
 	require.True(t, info.UseRuntimeHeadersOverride)
 
 	require.Equal(t, "legacy-static", info.RuntimeHeadersOverride["x-static"])
-	require.Equal(t, "Codex CLI", info.RuntimeHeadersOverride["originator"])
-	require.Equal(t, "sess-123", info.RuntimeHeadersOverride["session_id"])
-	require.Equal(t, "codex-cli-test", info.RuntimeHeadersOverride["user-agent"])
-
-	_, exists := info.RuntimeHeadersOverride["x-codex-beta-features"]
-	require.False(t, exists)
-	_, exists = info.RuntimeHeadersOverride["x-codex-turn-metadata"]
-	require.False(t, exists)
+	for name, value := range requestHeaders {
+		require.Equal(t, value, info.RuntimeHeadersOverride[strings.ToLower(name)], name)
+	}
 }
