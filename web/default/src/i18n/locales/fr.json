@@ -5379,6 +5379,14 @@
     "Zero retention": "Aucune rétention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Clamped to": "Plafonné à",
+    "Invalid (NaN)": "Invalide (NaN)",
+    "Kind": "Type",
+    "Original value": "Valeur d’origine",
+    "Overflow": "Dépassement supérieur",
+    "Quota clamped": "Quota plafonné",
+    "Quota saturation protection triggered": "La protection contre la saturation du quota a été déclenchée",
+    "Underflow": "Dépassement inférieur"
   }
 }

@@ -96,6 +96,9 @@ var defaultModelRatio = map[string]float64{
 	"gpt-5-mini-2025-08-07":                     0.125,
 	"gpt-5-nano":                                0.025,
 	"gpt-5-nano-2025-08-07":                     0.025,
+	"gpt-5.6-sol":                               2.5,
+	"gpt-5.6-terra":                             1.25,
+	"gpt-5.6-luna":                              0.5,
 	"gpt-3.5-turbo":                             0.25,
 	"gpt-3.5-turbo-0613":                        0.75,
 	"gpt-3.5-turbo-16k":                         1.5, // $0.003 / 1K tokens
@@ -513,10 +516,9 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 				}
 				return 6, true
 			}
-			// Keep 8x as the fallback for unconfigured future GPT-5 models.
-			// It must not override an explicit CompletionRatio configured for a
-			// custom model such as gpt-5.6-sol.
-			return 8, false
+			// GPT-5.5 and later models use a 6x output/input ratio by default,
+			// while remaining configurable for compatible custom providers.
+			return 6, false
 		}
 		// gpt-4.5-preview匹配
 		if strings.HasPrefix(name, "gpt-4.5-preview") {

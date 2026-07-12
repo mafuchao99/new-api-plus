@@ -5379,6 +5379,14 @@
     "Zero retention": "データ保持なし",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V 4",
-    "Zoom": "ズーム"
+    "Zoom": "ズーム",
+    "Clamped to": "制限後の値",
+    "Invalid (NaN)": "無効（NaN）",
+    "Kind": "種類",
+    "Original value": "元の値",
+    "Overflow": "オーバーフロー",
+    "Quota clamped": "クォータを制限",
+    "Quota saturation protection triggered": "クォータ飽和保護が作動しました",
+    "Underflow": "アンダーフロー"
   }
 }

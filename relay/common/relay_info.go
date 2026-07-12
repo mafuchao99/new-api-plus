@@ -163,6 +163,10 @@ type RelayInfo struct {
 
 	PriceData types.PriceData
 
+	// QuotaClamp records the first settlement-time saturation for admin audit.
+	// Pre-consume paths reject clamps before deduction instead of storing one.
+	QuotaClamp *common.QuotaClamp
+
 	// TieredBillingSnapshot is a frozen snapshot of tiered billing rules
 	// captured at pre-consume time. Non-nil only when billing mode is "tiered_expr".
 	TieredBillingSnapshot *billingexpr.BillingSnapshot

@@ -16,13 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type FormEvent,
-  type ReactElement,
-} from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import type { TFunction } from 'i18next'
 import {
@@ -33,11 +26,18 @@ import {
   Route,
   Unlock,
 } from 'lucide-react'
+import {
+  useEffect,
+  useMemo,
+  useState,
+  type FormEvent,
+  type ReactElement,
+} from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import type { User } from '@/features/users/types'
-import { cn } from '@/lib/utils'
+
 import { ConfirmDialog } from '@/components/confirm-dialog'
+import { Dialog } from '@/components/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -50,7 +50,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Dialog } from '@/components/dialog'
+import type { User } from '@/features/users/types'
+import { cn } from '@/lib/utils'
+
 import {
   getAdminUserApiKeys,
   getApiKeyRouteOptions,
@@ -82,6 +84,7 @@ type PendingRouteLockAction = PendingRouteSwitchAction & {
 
 const KEY_PAGE_SIZE_OPTIONS = [10, 20, 50]
 const DEFAULT_ROUTE_LINE_VALUE = '__default_route_line__'
+const ROUTE_SWITCH_SKELETON_ROWS = ['first', 'second', 'third', 'fourth']
 
 type ApiKeyRouteSwitchKeysResult = {
   items: ApiKey[]
@@ -147,8 +150,8 @@ function effectiveRouteForSlot(
 function ApiKeyRouteSwitchSkeleton(): ReactElement {
   return (
     <div className='space-y-2 rounded-lg border p-3'>
-      {Array.from({ length: 4 }).map((_, index) => (
-        <div key={index} className='space-y-2 border-b pb-3 last:border-b-0'>
+      {ROUTE_SWITCH_SKELETON_ROWS.map((row) => (
+        <div key={row} className='space-y-2 border-b pb-3 last:border-b-0'>
           <div className='flex items-center justify-between gap-3'>
             <Skeleton className='h-4 w-40' />
             <Skeleton className='h-8 w-28' />
@@ -370,8 +373,8 @@ export function ApiKeysRouteSwitchDialog(
     setKeyPage(1)
   }
 
-  const handleSlotChange = (value: string) => {
-    setSelectedSlotId(value)
+  const handleSlotChange = (value: string | null) => {
+    setSelectedSlotId(value ?? '')
     setBatchLineId('')
     setRowLineByKey({})
   }
@@ -419,7 +422,7 @@ export function ApiKeysRouteSwitchDialog(
   }
 
   const routeLockedLineIdForKey = (apiKey: ApiKey): string => {
-    if (Object.prototype.hasOwnProperty.call(lockedLineByKey, apiKey.id)) {
+    if (Object.hasOwn(lockedLineByKey, apiKey.id)) {
       return lockedLineByKey[apiKey.id] ?? ''
     }
     if (
@@ -558,12 +561,13 @@ export function ApiKeysRouteSwitchDialog(
 
               <Select
                 value={rowLineId || undefined}
-                onValueChange={(value) =>
+                onValueChange={(value) => {
+                  if (value == null) return
                   setRowLineByKey((currentRows) => ({
                     ...currentRows,
                     [apiKey.id]: value,
                   }))
-                }
+                }}
                 disabled={routeLocked || !selectedSlotId}
               >
                 <SelectTrigger className='w-full'>
@@ -578,7 +582,7 @@ export function ApiKeysRouteSwitchDialog(
                   >
                     {isDefaultRouteLineValue(rowLineId)
                       ? defaultRouteLineLabel
-                      : rowRouteLine?.name ?? t('Select route line')}
+                      : (rowRouteLine?.name ?? t('Select route line'))}
                   </span>
                 </SelectTrigger>
                 <SelectContent alignItemWithTrigger={false}>
@@ -732,7 +736,7 @@ export function ApiKeysRouteSwitchDialog(
                   </label>
                   <Select
                     value={batchLineId || undefined}
-                    onValueChange={setBatchLineId}
+                    onValueChange={(value) => setBatchLineId(value ?? '')}
                     disabled={!selectedSlotId}
                   >
                     <SelectTrigger className='w-full'>
@@ -747,7 +751,7 @@ export function ApiKeysRouteSwitchDialog(
                       >
                         {isDefaultRouteLineValue(batchLineId)
                           ? defaultRouteLineLabel
-                          : selectedBatchLine?.name ?? t('Select route line')}
+                          : (selectedBatchLine?.name ?? t('Select route line'))}
                       </span>
                     </SelectTrigger>
                     <SelectContent alignItemWithTrigger={false}>
@@ -884,9 +888,7 @@ export function ApiKeysRouteSwitchDialog(
         onOpenChange={(open) => {
           if (!open) setPendingLockAction(null)
         }}
-        title={
-          pendingLockAction?.locked ? t('Unlock route') : t('Lock route')
-        }
+        title={pendingLockAction?.locked ? t('Unlock route') : t('Lock route')}
         desc={
           pendingLockAction?.locked
             ? t('Unlock route for {{key}}?', {

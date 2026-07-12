@@ -98,6 +98,21 @@ func TestStreamScannerHandler_EmptyBody(t *testing.T) {
 	assert.False(t, called.Load(), "handler should not be called for empty body")
 }
 
+func TestStreamScannerHandlerCopiesCodexTurnHeaders(t *testing.T) {
+	t.Parallel()
+
+	c, resp, info := setupStreamTest(t, strings.NewReader("data: [DONE]\n"))
+	resp.Header = http.Header{}
+	resp.Header.Add("X-Reasoning-Included", "true")
+	resp.Header.Add("X-Codex-Turn-State", "active")
+	resp.Header.Add("X-Codex-Turn-State", "checkpointed")
+
+	StreamScannerHandler(c, resp, info, func(data string, sr *StreamResult) {})
+
+	assert.Equal(t, "true", c.Writer.Header().Get("X-Reasoning-Included"))
+	assert.Equal(t, []string{"active", "checkpointed"}, c.Writer.Header().Values("X-Codex-Turn-State"))
+}
+
 func TestStreamScannerHandler_1000Chunks(t *testing.T) {
 	t.Parallel()
 

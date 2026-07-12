@@ -208,11 +208,11 @@ func EstimateRequestToken(c *gin.Context, meta *types.TokenCountMeta, info *rela
 			if err != nil {
 				return 0, fmt.Errorf("error getting audio duration: %v", err)
 			}
-			// 一分钟 1000 token，与 $price / minute 对齐。
-			audioTokens := common.QuotaFromFloat(math.Round(math.Ceil(duration) / 60.0 * 1000))
-			if audioTokens < 0 {
-				audioTokens = 0
+			if duration < 0 {
+				duration = 0
 			}
+			// 一分钟 1000 token，与 $price / minute 对齐。
+			audioTokens := common.QuotaRound(math.Ceil(duration) / 60.0 * 1000)
 			totalAudioToken = common.QuotaFromFloat(float64(totalAudioToken) + float64(audioTokens))
 		}
 		return totalAudioToken, nil

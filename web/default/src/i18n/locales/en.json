@@ -5379,6 +5379,14 @@
     "Zero retention": "Zero retention",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Clamped to": "Clamped to",
+    "Invalid (NaN)": "Invalid (NaN)",
+    "Kind": "Kind",
+    "Original value": "Original value",
+    "Overflow": "Overflow",
+    "Quota clamped": "Quota clamped",
+    "Quota saturation protection triggered": "Quota saturation protection triggered",
+    "Underflow": "Underflow"
   }
 }

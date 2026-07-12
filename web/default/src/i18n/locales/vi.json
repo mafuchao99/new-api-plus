@@ -5379,6 +5379,14 @@
     "Zero retention": "Không lưu dữ liệu",
     "Zhipu": "Zhipu",
     "Zhipu V4": "Zhipu V4",
-    "Zoom": "Zoom"
+    "Zoom": "Zoom",
+    "Clamped to": "Giới hạn thành",
+    "Invalid (NaN)": "Không hợp lệ (NaN)",
+    "Kind": "Loại",
+    "Original value": "Giá trị ban đầu",
+    "Overflow": "Tràn số",
+    "Quota clamped": "Hạn mức đã được giới hạn",
+    "Quota saturation protection triggered": "Đã kích hoạt bảo vệ bão hòa hạn mức",
+    "Underflow": "Tràn dưới"
   }
 }

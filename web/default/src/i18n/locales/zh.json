@@ -5379,6 +5379,14 @@
     "Zero retention": "零数据保留",
     "Zhipu": "智谱",
     "Zhipu V4": "智谱 V4",
-    "Zoom": "缩放"
+    "Zoom": "缩放",
+    "Clamped to": "钳制为",
+    "Invalid (NaN)": "无效值（NaN）",
+    "Kind": "类型",
+    "Original value": "原始值",
+    "Overflow": "上溢",
+    "Quota clamped": "额度已钳制",
+    "Quota saturation protection triggered": "额度饱和保护已触发",
+    "Underflow": "下溢"
   }
 }

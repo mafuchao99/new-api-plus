@@ -34,8 +34,8 @@ func TestModelPriceHelperTieredUsesPreloadedRequestInput(t *testing.T) {
 	})
 
 	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
-		"billing_setting.billing_mode": `{"tiered-test-model":"tiered_expr"}`,
-		"billing_setting.billing_expr": `{"tiered-test-model":"param(\"stream\") == true ? tier(\"stream\", p * 3) : tier(\"base\", p * 2)"}`,
+		"billing_setting.billing_mode": `{"tiered-test-model":"tiered_expr","tiered-fallback-model":"tiered_expr"}`,
+		"billing_setting.billing_expr": `{"tiered-test-model":"param(\"stream\") == true ? tier(\"stream\", p * 3) : tier(\"base\", p * 2)","tiered-fallback-model":"tier(\"base\", p * 2 + c * 10)"}`,
 	}))
 
 	recorder := httptest.NewRecorder()
@@ -65,9 +65,78 @@ func TestModelPriceHelperTieredUsesPreloadedRequestInput(t *testing.T) {
 	require.Equal(t, "stream", info.TieredBillingSnapshot.EstimatedTier)
 	require.Equal(t, billing_setting.BillingModeTieredExpr, info.TieredBillingSnapshot.BillingMode)
 	require.Equal(t, common.QuotaPerUnit, info.TieredBillingSnapshot.QuotaPerUnit)
+
+	fallbackInfo := &relaycommon.RelayInfo{
+		OriginModelName:     "tiered-fallback-model",
+		UserGroup:           "default",
+		UsingGroup:          "default",
+		BillingRequestInput: &billingexpr.RequestInput{},
+	}
+	fallbackPrice, err := ModelPriceHelper(ctx, fallbackInfo, 1000, &types.TokenCountMeta{})
+	require.NoError(t, err)
+	require.Equal(t, 41960, fallbackPrice.QuotaToPreConsume)
+	require.NotNil(t, fallbackInfo.TieredBillingSnapshot)
+	require.Equal(t, defaultTieredPreConsumeMaxTokens, fallbackInfo.TieredBillingSnapshot.EstimatedCompletionTokens)
 }
 
-func TestModelPriceHelperRouteLineBillingSaturatesQuota(t *testing.T) {
+func TestModelPriceHelperPerRequestRouteOverridesTieredModel(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	savedConfig := map[string]string{}
+	require.NoError(t, config.GlobalConfig.SaveToDB(func(key, value string) error {
+		savedConfig[key] = value
+		return nil
+	}))
+	t.Cleanup(func() {
+		require.NoError(t, config.GlobalConfig.LoadFromDB(savedConfig))
+	})
+	require.NoError(t, config.GlobalConfig.LoadFromDB(map[string]string{
+		"billing_setting.billing_mode": `{"tiered-route-override-model":"tiered_expr"}`,
+		"billing_setting.billing_expr": `{"tiered-route-override-model":"tier(\"global\", p * 100)"}`,
+	}))
+
+	oldDB := model.DB
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	require.NoError(t, err)
+	require.NoError(t, db.AutoMigrate(&model.RouteLine{}, &model.RouteLineModelPrice{}))
+	model.DB = db
+	t.Cleanup(func() {
+		model.DB = oldDB
+	})
+
+	line := model.RouteLine{Code: "tiered-override-line", Name: "Tiered Override Line", Enabled: true}
+	require.NoError(t, db.Create(&line).Error)
+	perRequestPrice := 4.0
+	require.NoError(t, db.Create(&model.RouteLineModelPrice{
+		RouteLineId:     line.Id,
+		ModelName:       "tiered-route-override-model",
+		BillingMode:     model.RouteLineBillingModePerRequest,
+		PerRequestPrice: &perRequestPrice,
+		Enabled:         true,
+	}).Error)
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
+	ctx.Set("group", "default")
+	common.SetContextKey(ctx, constant.ContextKeyRouteLineId, line.Id)
+	info := &relaycommon.RelayInfo{
+		OriginModelName: "tiered-route-override-model",
+		UserGroup:       "default",
+		UsingGroup:      "default",
+	}
+
+	priceData, err := ModelPriceHelper(ctx, info, 1000, &types.TokenCountMeta{})
+
+	require.NoError(t, err)
+	require.Nil(t, info.TieredBillingSnapshot)
+	require.True(t, priceData.UsePrice)
+	require.Equal(t, perRequestPrice, priceData.ModelPrice)
+	require.Equal(t, perRequestPrice, priceData.RouteLinePrice)
+	require.Equal(t, model.RouteLineBillingModePerRequest, priceData.RouteLineBillingMode)
+	require.Equal(t, common.QuotaFromFloat(perRequestPrice*common.QuotaPerUnit), priceData.QuotaToPreConsume)
+}
+
+func TestModelPriceHelperRouteLineBillingRejectsSaturatedPreConsume(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
 	oldDB := model.DB
@@ -114,10 +183,11 @@ func TestModelPriceHelperRouteLineBillingSaturatesQuota(t *testing.T) {
 			UsingGroup:      "default",
 		}
 
-		priceData, err := ModelPriceHelper(newContext(line.Id), info, 1, &types.TokenCountMeta{})
+		_, err := ModelPriceHelper(newContext(line.Id), info, 1, &types.TokenCountMeta{})
 
-		require.NoError(t, err)
-		require.Equal(t, math.MaxInt32, priceData.QuotaToPreConsume)
+		var clamp *common.QuotaClamp
+		require.ErrorAs(t, err, &clamp)
+		require.Equal(t, common.QuotaClampOverflow, clamp.Kind)
 	})
 
 	t.Run("per request mode", func(t *testing.T) {
@@ -139,10 +209,11 @@ func TestModelPriceHelperRouteLineBillingSaturatesQuota(t *testing.T) {
 			UsingGroup:      "default",
 		}
 
-		priceData, err := ModelPriceHelper(newContext(line.Id), info, 1, &types.TokenCountMeta{})
+		_, err := ModelPriceHelper(newContext(line.Id), info, 1, &types.TokenCountMeta{})
 
-		require.NoError(t, err)
-		require.Equal(t, math.MaxInt32, priceData.QuotaToPreConsume)
+		var clamp *common.QuotaClamp
+		require.ErrorAs(t, err, &clamp)
+		require.Equal(t, common.QuotaClampOverflow, clamp.Kind)
 	})
 }
 
