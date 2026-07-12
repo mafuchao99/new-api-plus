@@ -16,13 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo } from 'react'
 import { Tag as TagIcon } from 'lucide-react'
+import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
-import { useSystemConfigStore } from '@/stores/system-config-store'
-import { cn } from '@/lib/utils'
-import { Badge } from '@/components/ui/badge'
+
 import { StaticDataTable } from '@/components/data-table'
+import { Badge } from '@/components/ui/badge'
+import { cn } from '@/lib/utils'
+import { useSystemConfigStore } from '@/stores/system-config-store'
+
 import {
   BILLING_PRICING_VARS,
   MATCH_CONTAINS,
@@ -57,6 +59,10 @@ type DynamicPricingBreakdownProps = {
    * call they are inspecting. Defaults to false (show all configured prices).
    */
   hideCacheColumns?: boolean
+  /** Apply an additional display-only multiplier, such as a route ratio. */
+  priceMultiplier?: number
+  /** Hide the component title when embedded in another pricing panel. */
+  showHeader?: boolean
 }
 
 const VAR_LABELS: Record<string, string> = {
@@ -150,6 +156,8 @@ export function DynamicPricingBreakdown({
   billingExpr,
   matchedTierLabel,
   hideCacheColumns = false,
+  priceMultiplier = 1,
+  showHeader = true,
 }: DynamicPricingBreakdownProps) {
   const { t } = useTranslation()
   const expr = billingExpr || ''
@@ -183,25 +191,31 @@ export function DynamicPricingBreakdown({
   const normalizedMatchedTierLabel = normalizeTierLabel(
     matchedTierLabel ?? undefined
   )
+  const effectivePriceMultiplier =
+    Number.isFinite(priceMultiplier) && priceMultiplier >= 0
+      ? priceMultiplier
+      : 1
 
   if (!expr) return null
 
   if (!hasTiers) {
     return (
       <section className='min-w-0 py-4'>
-        <div className='mb-3 flex items-center gap-2'>
-          <span className='inline-flex size-6 items-center justify-center rounded-lg bg-amber-100 text-amber-700 shadow-sm dark:bg-amber-500/20 dark:text-amber-300'>
-            <TagIcon className='size-3.5' />
-          </span>
-          <div>
-            <div className='text-foreground text-base font-medium'>
-              {t('Special billing expression')}
-            </div>
-            <div className='text-muted-foreground text-xs'>
-              {t('Unable to parse structured pricing')}
+        {showHeader && (
+          <div className='mb-3 flex items-center gap-2'>
+            <span className='inline-flex size-6 items-center justify-center rounded-lg bg-amber-100 text-amber-700 shadow-sm dark:bg-amber-500/20 dark:text-amber-300'>
+              <TagIcon className='size-3.5' />
+            </span>
+            <div>
+              <div className='text-foreground text-base font-medium'>
+                {t('Special billing expression')}
+              </div>
+              <div className='text-muted-foreground text-xs'>
+                {t('Unable to parse structured pricing')}
+              </div>
             </div>
           </div>
-        </div>
+        )}
         <div className='text-muted-foreground mb-1 text-[10px] font-medium tracking-wider uppercase'>
           {t('Raw expression')}
         </div>
@@ -222,19 +236,21 @@ export function DynamicPricingBreakdown({
 
   return (
     <section className='min-w-0 py-3 sm:py-4'>
-      <div className='mb-3 flex items-start gap-2 sm:mb-4'>
-        <span className='mt-0.5 inline-flex size-6 items-center justify-center rounded-lg bg-amber-100 text-amber-700 shadow-sm dark:bg-amber-500/20 dark:text-amber-300'>
-          <TagIcon className='size-3.5' />
-        </span>
-        <div>
-          <div className='text-foreground text-base font-medium'>
-            {t('Dynamic Pricing')}
-          </div>
-          <div className='text-muted-foreground text-xs'>
-            {t('Prices vary by usage tier and request conditions')}
+      {showHeader && (
+        <div className='mb-3 flex items-start gap-2 sm:mb-4'>
+          <span className='mt-0.5 inline-flex size-6 items-center justify-center rounded-lg bg-amber-100 text-amber-700 shadow-sm dark:bg-amber-500/20 dark:text-amber-300'>
+            <TagIcon className='size-3.5' />
+          </span>
+          <div>
+            <div className='text-foreground text-base font-medium'>
+              {t('Dynamic Pricing')}
+            </div>
+            <div className='text-muted-foreground text-xs'>
+              {t('Prices vary by usage tier and request conditions')}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {hasTiers && (
         <div className='mb-3 sm:mb-4'>
@@ -242,7 +258,7 @@ export function DynamicPricingBreakdown({
             {t('Tiered price table')}
           </div>
           <div className='space-y-1.5 sm:hidden'>
-            {tiers.map((tier, i) => {
+            {tiers.map((tier) => {
               const condSummary = formatConditionSummary(tier.conditions, t)
               const isMatched =
                 matchedTierLabel != null &&
@@ -250,7 +266,7 @@ export function DynamicPricingBreakdown({
                 tier.label === matchedTierLabel
               return (
                 <div
-                  key={`tier-mobile-${i}`}
+                  key={`tier-mobile-${tier.label}`}
                   className={cn(
                     'rounded-md border p-2',
                     isMatched && 'border-emerald-500/40 bg-emerald-500/10'
@@ -289,7 +305,7 @@ export function DynamicPricingBreakdown({
                           </div>
                           <div className='truncate font-mono text-sm font-semibold'>
                             {value > 0
-                              ? `${symbol}${(value * rate).toFixed(4)}`
+                              ? `${symbol}${(value * effectivePriceMultiplier * rate).toFixed(4)}`
                               : '-'}
                           </div>
                         </div>
@@ -354,8 +370,8 @@ export function DynamicPricingBreakdown({
                   )
                 },
               },
-              ...visiblePriceFields.map((v, index) => ({
-                id: v.field ?? `price-${index}`,
+              ...visiblePriceFields.map((v) => ({
+                id: v.field as string,
                 header: t(v.shortLabel),
                 className: 'text-muted-foreground py-2 text-right font-medium',
                 cellClassName: 'py-2.5 text-right align-top font-mono',
@@ -365,7 +381,7 @@ export function DynamicPricingBreakdown({
                   )
                   return value > 0 ? (
                     <span className='font-semibold'>
-                      {`${symbol}${(value * rate).toFixed(4)}`}
+                      {`${symbol}${(value * effectivePriceMultiplier * rate).toFixed(4)}`}
                     </span>
                   ) : (
                     '-'
@@ -383,9 +399,9 @@ export function DynamicPricingBreakdown({
             {t('Conditional multipliers')}
           </div>
           <ul className='space-y-1.5'>
-            {ruleGroups.map((group, gi) => (
+            {ruleGroups.map((group) => (
               <li
-                key={`group-${gi}`}
+                key={`group-${JSON.stringify(group)}`}
                 className='bg-muted/50 flex items-center justify-between gap-3 rounded-md px-3 py-2'
               >
                 <span className='text-foreground text-sm break-all'>

@@ -35,6 +35,8 @@ export type RoutePricingLine = {
   billing_mode: RouteBillingMode
   ratio?: number | null
   per_request_price?: number | null
+  billing_expr?: string
+  expression_multiplier?: number | null
   expression_label?: string
   is_default: boolean
   is_model_override: boolean
@@ -46,6 +48,8 @@ export type RoutePricingModel = {
   id: string
   vendor?: string
   description?: string
+  billing_mode?: string
+  billing_expr?: string
   official_price_items: RoutePricingPriceItem[]
   lines: RoutePricingLine[]
 }

@@ -8,6 +8,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 
 	"github.com/gin-gonic/gin"
@@ -41,24 +42,28 @@ type routePricingPriceItemDTO struct {
 }
 
 type routePricingLineDTO struct {
-	Id              string                     `json:"id"`
-	CategoryId      string                     `json:"category_id"`
-	Name            string                     `json:"name"`
-	Description     string                     `json:"description"`
-	BillingMode     string                     `json:"billing_mode"`
-	Ratio           *float64                   `json:"ratio,omitempty"`
-	PerRequestPrice *float64                   `json:"per_request_price,omitempty"`
-	ExpressionLabel string                     `json:"expression_label,omitempty"`
-	IsDefault       bool                       `json:"is_default"`
-	IsModelOverride bool                       `json:"is_model_override"`
-	Sort            int                        `json:"sort"`
-	PriceItems      []routePricingPriceItemDTO `json:"price_items"`
+	Id                   string                     `json:"id"`
+	CategoryId           string                     `json:"category_id"`
+	Name                 string                     `json:"name"`
+	Description          string                     `json:"description"`
+	BillingMode          string                     `json:"billing_mode"`
+	Ratio                *float64                   `json:"ratio,omitempty"`
+	PerRequestPrice      *float64                   `json:"per_request_price,omitempty"`
+	BillingExpr          string                     `json:"billing_expr,omitempty"`
+	ExpressionMultiplier *float64                   `json:"expression_multiplier,omitempty"`
+	ExpressionLabel      string                     `json:"expression_label,omitempty"`
+	IsDefault            bool                       `json:"is_default"`
+	IsModelOverride      bool                       `json:"is_model_override"`
+	Sort                 int                        `json:"sort"`
+	PriceItems           []routePricingPriceItemDTO `json:"price_items"`
 }
 
 type routePricingModelDTO struct {
 	Id                 string                     `json:"id"`
 	Vendor             string                     `json:"vendor"`
 	Description        string                     `json:"description,omitempty"`
+	BillingMode        string                     `json:"billing_mode,omitempty"`
+	BillingExpr        string                     `json:"billing_expr,omitempty"`
 	OfficialPriceItems []routePricingPriceItemDTO `json:"official_price_items"`
 	Lines              []routePricingLineDTO      `json:"lines"`
 }
@@ -111,7 +116,7 @@ func buildRoutePricingResponse(pricings []model.Pricing, vendors []model.Pricing
 			officialPriceItems := routePricingOfficialPriceItems(pricing)
 			linePrice := findRouteLineModelPrice(line.ModelPrices, pricing.ModelName)
 			lineDTO := routePricingLineToDTO(line, category.Id, pricing, linePrice, officialPriceItems)
-			if len(lineDTO.PriceItems) == 0 {
+			if len(lineDTO.PriceItems) == 0 && strings.TrimSpace(lineDTO.BillingExpr) == "" {
 				continue
 			}
 
@@ -125,6 +130,8 @@ func buildRoutePricingResponse(pricings []model.Pricing, vendors []model.Pricing
 					Id:                 pricing.ModelName,
 					Vendor:             vendorName,
 					Description:        pricing.Description,
+					BillingMode:        pricing.BillingMode,
+					BillingExpr:        pricing.BillingExpr,
 					OfficialPriceItems: officialPriceItems,
 					Lines:              make([]routePricingLineDTO, 0),
 				}
@@ -203,7 +210,7 @@ func buildRoutePricingResponse(pricings []model.Pricing, vendors []model.Pricing
 		Models:           models,
 		TotalRoutes:      len(routes),
 		PerRequestRoutes: len(perRequestRouteKeys),
-		PricingVersion:   "route-pricing-v1",
+		PricingVersion:   "route-pricing-v2",
 	}
 }
 
@@ -326,6 +333,13 @@ func routePricingLineToDTO(
 			}
 		}
 	case model.RouteLineBillingModeExpression:
+		if modelPrice != nil && modelPrice.PriceExpression != nil {
+			lineDTO.BillingExpr = strings.TrimSpace(*modelPrice.PriceExpression)
+		}
+		if lineDTO.BillingExpr != "" {
+			multiplier := 1.0
+			lineDTO.ExpressionMultiplier = &multiplier
+		}
 		label := strings.TrimSpace(expressionLabel)
 		if label == "" {
 			label = "Expression pricing"
@@ -341,13 +355,21 @@ func routePricingLineToDTO(
 		if ratio != nil {
 			ratioValue = *ratio
 		}
-		lineDTO.PriceItems = routePricingRatioPriceItems(pricing, officialPriceItems, ratioValue)
+		if pricing.BillingMode == billing_setting.BillingModeTieredExpr && strings.TrimSpace(pricing.BillingExpr) != "" {
+			lineDTO.BillingExpr = pricing.BillingExpr
+			lineDTO.ExpressionMultiplier = &ratioValue
+		} else {
+			lineDTO.PriceItems = routePricingRatioPriceItems(pricing, officialPriceItems, ratioValue)
+		}
 	}
 
 	return lineDTO
 }
 
 func routePricingOfficialPriceItems(pricing model.Pricing) []routePricingPriceItemDTO {
+	if pricing.BillingMode == billing_setting.BillingModeTieredExpr && strings.TrimSpace(pricing.BillingExpr) != "" {
+		return []routePricingPriceItemDTO{}
+	}
 	if pricing.QuotaType == 1 {
 		return []routePricingPriceItemDTO{
 			routePricingAmountItem("per_request", "Per request", pricing.ModelPrice, "request"),
@@ -359,7 +381,7 @@ func routePricingOfficialPriceItems(pricing model.Pricing) []routePricingPriceIt
 		routePricingAmountItem("input", "Input", inputPrice, "1M"),
 	}
 	if pricing.CreateCacheRatio != nil {
-		items = append(items, routePricingAmountItem("cached_input", "Cached input", inputPrice*(*pricing.CreateCacheRatio), "1M"))
+		items = append(items, routePricingAmountItem("cache_write", "Cache Write", inputPrice*(*pricing.CreateCacheRatio), "1M"))
 	}
 	items = append(items, routePricingAmountItem("output", "Output", inputPrice*pricing.CompletionRatio, "1M"))
 	if pricing.CacheRatio != nil {

@@ -16,7 +16,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useMemo, useState, type ReactNode } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   Boxes,
@@ -27,20 +26,19 @@ import {
   ShieldCheck,
   SlidersHorizontal,
 } from 'lucide-react'
+import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
-import { formatBillingCurrencyFromUSD } from '@/lib/currency'
-import { PageTransition } from '@/components/page-transition'
+
 import { PublicLayout } from '@/components/layout'
+import { PageTransition } from '@/components/page-transition'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { DynamicPricingBreakdown } from '@/features/pricing/components/dynamic-pricing-breakdown'
+import { formatBillingCurrencyFromUSD } from '@/lib/currency'
+import { cn } from '@/lib/utils'
+
 import { getRoutePricing } from './api'
 import type {
   RouteBillingMode,
@@ -65,6 +63,8 @@ const EMPTY_ROUTE_PRICING: RoutePricingData = {
   total_routes: 0,
   per_request_routes: 0,
 }
+
+const LOADING_CARD_IDS = ['loading-1', 'loading-2', 'loading-3', 'loading-4']
 
 function formatRatio(value?: number | null) {
   if (value == null) return '-'
@@ -92,7 +92,9 @@ function formatPriceItemValue(
 ) {
   if (item.amount != null) {
     const unit = item.unit === 'request' ? translate('request') : item.unit
-    return unit ? `${formatPriceAmount(item.amount)} / ${unit}` : formatPriceAmount(item.amount)
+    return unit
+      ? `${formatPriceAmount(item.amount)} / ${unit}`
+      : formatPriceAmount(item.amount)
   }
 
   if (item.text) {
@@ -167,7 +169,9 @@ function getLowestRatio(models: RoutePricingModel[]) {
   const ratios = models.flatMap((model) =>
     model.lines
       .map((line) => line.ratio)
-      .filter((ratio): ratio is number => typeof ratio === 'number' && ratio > 0)
+      .filter(
+        (ratio): ratio is number => typeof ratio === 'number' && ratio > 0
+      )
   )
   if (ratios.length === 0) return '-'
   return formatRatio(Math.min(...ratios))
@@ -188,10 +192,10 @@ function buildCategoryLabelMap(
 function LoadingCards() {
   return (
     <div className='grid gap-4 2xl:grid-cols-2'>
-      {Array.from({ length: 4 }).map((_, index) => (
+      {LOADING_CARD_IDS.map((id) => (
         <div
-          key={index}
-          className='h-64 animate-pulse rounded-lg border bg-muted/40'
+          key={id}
+          className='bg-muted/40 h-64 animate-pulse rounded-lg border'
         />
       ))}
     </div>
@@ -205,7 +209,7 @@ function SummaryMetric(props: {
   hint: string
 }) {
   return (
-    <div className='rounded-lg border bg-card p-4'>
+    <div className='bg-card rounded-lg border p-4'>
       <div className='flex items-center gap-2'>
         <div className='bg-muted flex size-8 items-center justify-center rounded-md'>
           {props.icon}
@@ -240,7 +244,7 @@ function PriceBreakdown(props: {
       {props.items.map((item) => (
         <div
           key={`${item.type}-${item.label_key}-${item.text || item.amount || 0}`}
-          className='rounded-md bg-muted/60 px-2 py-1 text-[11px] leading-tight'
+          className='bg-muted/60 rounded-md px-2 py-1 text-[11px] leading-tight'
         >
           <span className='text-muted-foreground'>{t(item.label_key)}</span>
           <span className='ml-1 font-semibold tabular-nums'>
@@ -252,11 +256,14 @@ function PriceBreakdown(props: {
   )
 }
 
-function OfficialPricePanel(props: { items: RoutePricingPriceItem[] }) {
+function OfficialPricePanel(props: {
+  items: RoutePricingPriceItem[]
+  billingExpr?: string
+}) {
   const { t } = useTranslation()
 
   return (
-    <div className='rounded-lg bg-muted/40 p-3'>
+    <div className='bg-muted/40 rounded-lg p-3'>
       <div className='mb-2'>
         <div className='text-muted-foreground text-xs font-medium'>
           {t('Official base price')}
@@ -265,48 +272,60 @@ function OfficialPricePanel(props: { items: RoutePricingPriceItem[] }) {
           {t('Reference price before route multipliers are applied.')}
         </p>
       </div>
-      <div
-        className={cn(
-          'grid gap-2',
-          props.items.length === 1 ? 'grid-cols-1' : 'grid-cols-2 sm:grid-cols-4'
-        )}
-      >
-        {props.items.map((item) => (
-          <div
-            key={`${item.type}-${item.label_key}-${item.text || item.amount || 0}`}
-            className='rounded-md bg-background/70 px-3 py-2'
-          >
-            <div className='text-muted-foreground text-xs'>
-              {t(item.label_key)}
+      {props.billingExpr ? (
+        <DynamicPricingBreakdown
+          billingExpr={props.billingExpr}
+          showHeader={false}
+        />
+      ) : (
+        <div
+          className={cn(
+            'grid gap-2',
+            props.items.length === 1
+              ? 'grid-cols-1'
+              : 'grid-cols-2 sm:grid-cols-4'
+          )}
+        >
+          {props.items.map((item) => (
+            <div
+              key={`${item.type}-${item.label_key}-${item.text || item.amount || 0}`}
+              className='bg-background/70 rounded-md px-3 py-2'
+            >
+              <div className='text-muted-foreground text-xs'>
+                {t(item.label_key)}
+              </div>
+              <div className='mt-1 text-sm font-semibold tabular-nums'>
+                {formatPriceItemValue(item, t)}
+              </div>
             </div>
-            <div className='mt-1 text-sm font-semibold tabular-nums'>
-              {formatPriceItemValue(item, t)}
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
 
-function RouteLineRow(props: {
-  line: RoutePricingLine
-}) {
+function RouteLineRow(props: { line: RoutePricingLine }) {
   const { t } = useTranslation()
   const ratioLabel =
-    props.line.billing_mode === 'ratio'
-      ? formatRatio(props.line.ratio)
-      : null
+    props.line.billing_mode === 'ratio' ? formatRatio(props.line.ratio) : null
   const billingLabel = ratioLabel
     ? `${t('Route multiplier')} ${ratioLabel}`
     : t(getBillingModeLabelKey(props.line.billing_mode))
   const routePriceHint = ratioLabel
     ? t('Route price = official base price x route multiplier.')
     : t('Charged according to this route rule.')
+  const hasExpressionBreakdown = Boolean(props.line.billing_expr)
 
   return (
     <div className='border-t px-4 py-4 text-sm'>
-      <div className='flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between'>
+      <div
+        className={cn(
+          'flex flex-col gap-3',
+          !hasExpressionBreakdown &&
+            'lg:flex-row lg:items-start lg:justify-between'
+        )}
+      >
         <div className='min-w-0'>
           <div className='flex flex-wrap items-center gap-1.5'>
             <div className='font-medium'>{props.line.name}</div>
@@ -318,9 +337,7 @@ function RouteLineRow(props: {
             )}
             <Badge
               variant={
-                props.line.billing_mode === 'ratio'
-                  ? 'default'
-                  : 'secondary'
+                props.line.billing_mode === 'ratio' ? 'default' : 'secondary'
               }
               className='tabular-nums'
             >
@@ -334,14 +351,24 @@ function RouteLineRow(props: {
           )}
         </div>
 
-        <div className='rounded-md bg-muted/50 px-3 py-2 lg:min-w-[240px] lg:text-right'>
-          <div className='mb-1 text-xs text-muted-foreground'>
+        <div
+          className={cn(
+            'rounded-md bg-muted/50 px-3 py-2',
+            !hasExpressionBreakdown && 'lg:min-w-[240px] lg:text-right'
+          )}
+        >
+          <div className='text-muted-foreground mb-1 text-xs'>
             {t('Estimated route price')}
           </div>
-          <PriceBreakdown
-            items={props.line.price_items}
-            align='right'
-          />
+          {hasExpressionBreakdown ? (
+            <DynamicPricingBreakdown
+              billingExpr={props.line.billing_expr}
+              priceMultiplier={props.line.expression_multiplier ?? 1}
+              showHeader={false}
+            />
+          ) : (
+            <PriceBreakdown items={props.line.price_items} align='right' />
+          )}
           <p className='text-muted-foreground/60 mt-1.5 text-[11px] leading-relaxed'>
             {routePriceHint}
           </p>
@@ -370,13 +397,13 @@ function ModelRouteCard(props: { model: RoutePricingModel }) {
       </CardHeader>
 
       <CardContent className='flex flex-col gap-3'>
-        <OfficialPricePanel items={props.model.official_price_items} />
+        <OfficialPricePanel
+          items={props.model.official_price_items}
+          billingExpr={props.model.billing_expr}
+        />
         <div className='overflow-hidden rounded-lg border'>
           {props.model.lines.map((line) => (
-            <RouteLineRow
-              key={line.id}
-              line={line}
-            />
+            <RouteLineRow key={line.id} line={line} />
           ))}
         </div>
       </CardContent>
@@ -479,6 +506,59 @@ export function PricingRoutePreview() {
       ? routePricingQuery.error.message
       : t('Request failed')
 
+  let pricingContent: ReactNode
+  if (routePricingQuery.isLoading) {
+    pricingContent = <LoadingCards />
+  } else if (routePricingQuery.isError) {
+    pricingContent = (
+      <div className='flex min-h-72 flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center'>
+        <Layers3 className='text-muted-foreground mb-3 size-10' />
+        <h3 className='text-base font-semibold'>
+          {t('Unable to load route pricing')}
+        </h3>
+        <p className='text-muted-foreground mt-2 max-w-sm text-sm'>
+          {errorMessage}
+        </p>
+        <Button
+          variant='outline'
+          size='sm'
+          onClick={() => routePricingQuery.refetch()}
+          className='mt-4'
+        >
+          {t('Retry')}
+        </Button>
+      </div>
+    )
+  } else if (filteredModels.length > 0) {
+    pricingContent = (
+      <div className='grid gap-4 2xl:grid-cols-2'>
+        {filteredModels.map((model) => (
+          <ModelRouteCard key={model.id} model={model} />
+        ))}
+      </div>
+    )
+  } else {
+    pricingContent = (
+      <div className='flex min-h-72 flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center'>
+        <Layers3 className='text-muted-foreground mb-3 size-10' />
+        <h3 className='text-base font-semibold'>{t('No matching routes')}</h3>
+        <p className='text-muted-foreground mt-2 max-w-sm text-sm'>
+          {t(
+            'Try clearing search terms or switching the model category filter.'
+          )}
+        </p>
+        <Button
+          variant='outline'
+          size='sm'
+          onClick={clearFilters}
+          className='mt-4'
+        >
+          {t('Clear all filters')}
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <PublicLayout showMainContainer={false}>
       <PageTransition className='mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-3 pt-20 pb-8 sm:px-6 sm:pt-24 xl:px-8'>
@@ -522,24 +602,30 @@ export function PricingRoutePreview() {
             icon={<RouteIcon className='size-4' />}
             label={t('Route choices')}
             value={String(routePricingData.total_routes)}
-            hint={t('Some models offer more than one route for different needs.')}
+            hint={t(
+              'Some models offer more than one route for different needs.'
+            )}
           />
           <SummaryMetric
             icon={<Gauge className='size-4' />}
             label={t('Lowest ratio')}
             value={getLowestRatio(routePricingModels)}
-            hint={t('Lower multipliers usually mean lower estimated route prices.')}
+            hint={t(
+              'Lower multipliers usually mean lower estimated route prices.'
+            )}
           />
           <SummaryMetric
             icon={<ShieldCheck className='size-4' />}
             label={t('Per-request rules')}
             value={String(routePricingData.per_request_routes)}
-            hint={t('Per-request routes show the price for each request directly.')}
+            hint={t(
+              'Per-request routes show the price for each request directly.'
+            )}
           />
         </div>
 
         <section className='grid gap-5 xl:grid-cols-[280px_minmax(0,1fr)]'>
-          <aside className='flex flex-col gap-4 self-start rounded-lg border bg-card p-4 xl:sticky xl:top-20'>
+          <aside className='bg-card flex flex-col gap-4 self-start rounded-lg border p-4 xl:sticky xl:top-20'>
             <div className='flex items-center gap-2'>
               <SlidersHorizontal className='size-4' />
               <h2 className='text-sm font-semibold'>
@@ -571,7 +657,9 @@ export function PricingRoutePreview() {
                     >
                       <span className='flex min-w-0 items-center gap-2'>
                         <RouteIcon className='size-4 shrink-0' />
-                        <span className='truncate'>{getOptionLabel(option, t)}</span>
+                        <span className='truncate'>
+                          {getOptionLabel(option, t)}
+                        </span>
                       </span>
                       {option.count != null && (
                         <span className='ml-2 text-xs tabular-nums opacity-70'>
@@ -617,49 +705,7 @@ export function PricingRoutePreview() {
             </Button>
           </aside>
 
-          <main className='flex min-w-0 flex-col gap-4'>
-            {routePricingQuery.isLoading ? (
-              <LoadingCards />
-            ) : routePricingQuery.isError ? (
-              <div className='flex min-h-72 flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center'>
-                <Layers3 className='text-muted-foreground mb-3 size-10' />
-                <h3 className='text-base font-semibold'>
-                  {t('Unable to load route pricing')}
-                </h3>
-                <p className='text-muted-foreground mt-2 max-w-sm text-sm'>
-                  {errorMessage}
-                </p>
-                <Button
-                  variant='outline'
-                  size='sm'
-                  onClick={() => routePricingQuery.refetch()}
-                  className='mt-4'
-                >
-                  {t('Retry')}
-                </Button>
-              </div>
-            ) : filteredModels.length > 0 ? (
-              <div className='grid gap-4 2xl:grid-cols-2'>
-                {filteredModels.map((model) => (
-                  <ModelRouteCard
-                    key={model.id}
-                    model={model}
-                  />
-                ))}
-              </div>
-            ) : (
-              <div className='flex min-h-72 flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center'>
-                <Layers3 className='text-muted-foreground mb-3 size-10' />
-                <h3 className='text-base font-semibold'>{t('No matching routes')}</h3>
-                <p className='text-muted-foreground mt-2 max-w-sm text-sm'>
-                  {t('Try clearing search terms or switching the model category filter.')}
-                </p>
-                <Button variant='outline' size='sm' onClick={clearFilters} className='mt-4'>
-                  {t('Clear all filters')}
-                </Button>
-              </div>
-            )}
-          </main>
+          <main className='flex min-w-0 flex-col gap-4'>{pricingContent}</main>
         </section>
       </PageTransition>
     </PublicLayout>
