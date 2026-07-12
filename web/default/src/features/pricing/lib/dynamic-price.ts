@@ -26,6 +26,7 @@ import {
   tryParseRequestRuleExpr,
   type BillingVar,
   type ParsedTier,
+  type TierCondition,
 } from './billing-expr'
 
 type DynamicPriceOptions = {
@@ -59,6 +60,44 @@ export type DynamicPricingSummary = {
 }
 
 const PRIMARY_DYNAMIC_FIELDS = new Set(['inputPrice', 'outputPrice'])
+
+const TIER_CONDITION_LABEL_KEYS: Record<TierCondition['var'], string> = {
+  p: 'Input',
+  c: 'Output',
+  len: 'Length',
+}
+
+const TIER_CONDITION_OPERATORS: Record<TierCondition['op'], string> = {
+  '<': '<',
+  '<=': '≤',
+  '>': '>',
+  '>=': '≥',
+}
+
+function formatTierConditionValue(value: number): string {
+  if (!Number.isFinite(value) || value === 0) return ''
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(value % 1_000_000 === 0 ? 0 : 1)}M`
+  }
+  if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(value % 1_000 === 0 ? 0 : 1)}K`
+  }
+  return String(value)
+}
+
+export function formatDynamicTierConditionSummary(
+  conditions: TierCondition[],
+  t: (key: string) => string
+): string {
+  return conditions
+    .map((condition) => {
+      const label = t(TIER_CONDITION_LABEL_KEYS[condition.var])
+      const value = formatTierConditionValue(condition.value)
+      return `${label} ${TIER_CONDITION_OPERATORS[condition.op]} ${value || condition.value}`
+    })
+    .filter(Boolean)
+    .join(' && ')
+}
 
 export function isDynamicPricingModel(model: PricingModel): boolean {
   return model.billing_mode === 'tiered_expr' && Boolean(model.billing_expr)

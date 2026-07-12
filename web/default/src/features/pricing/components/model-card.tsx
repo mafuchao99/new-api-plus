@@ -244,6 +244,13 @@ export const ModelCard = memo(function ModelCard(props: ModelCardProps) {
               size='sm'
             />
           )}
+          {dynamicSummary &&
+            !dynamicSummary.isSpecialExpression &&
+            dynamicSummary.tierCount > 1 && (
+              <span className='text-muted-foreground text-xs font-medium'>
+                {t('{{count}} tiers', { count: dynamicSummary.tierCount })}
+              </span>
+            )}
         </div>
         <ModelPerfBadge perf={props.perf} className='row-span-2 self-start' />
 

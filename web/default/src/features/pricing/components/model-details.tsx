@@ -40,6 +40,7 @@ import { useTranslation } from 'react-i18next'
 import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { Badge } from '@/components/ui/badge'
 import {
   Sheet,
   SheetContent,
@@ -64,6 +65,7 @@ import {
 import { DEFAULT_TOKEN_UNIT, QUOTA_TYPE_VALUES } from '../constants'
 import { usePricingData } from '../hooks/use-pricing-data'
 import {
+  formatDynamicTierConditionSummary,
   getDynamicPriceEntries,
   getDynamicPricingSummary,
   getDynamicPricingTiers,
@@ -843,40 +845,6 @@ function AutoGroupChain(props: { model: PricingModel; autoGroups: string[] }) {
   )
 }
 
-type DynamicPriceOptions = Parameters<typeof getDynamicPriceEntries>[1]
-type DynamicPricingTier = ReturnType<typeof getDynamicPricingTiers>[number]
-type DynamicFormattedPricesByTier = Map<DynamicPricingTier, Map<string, string>>
-
-function getDynamicPriceFields(
-  tiers: DynamicPricingTier[],
-  options: DynamicPriceOptions
-) {
-  return Array.from(
-    new Map(
-      tiers
-        .flatMap((tier) => getDynamicPriceEntries(tier, options))
-        .map((entry) => [entry.field, entry])
-    ).values()
-  )
-}
-
-function getDynamicFormattedPricesByTier(
-  tiers: DynamicPricingTier[],
-  options: DynamicPriceOptions
-): DynamicFormattedPricesByTier {
-  return new Map(
-    tiers.map((tier) => [
-      tier,
-      new Map(
-        getDynamicPriceEntries(tier, options).map((entry) => [
-          entry.field,
-          entry.formatted,
-        ])
-      ),
-    ])
-  )
-}
-
 // ----------------------------------------------------------------------------
 // Group pricing table
 // ----------------------------------------------------------------------------
@@ -967,25 +935,23 @@ function GroupPricingSection(props: {
       )
     }
 
-    const priceFields = getDynamicPriceFields(dynamicTiers, {
-      tokenUnit: props.tokenUnit,
-      showRechargePrice,
-      priceRate: props.priceRate,
-      usdExchangeRate: props.usdExchangeRate,
-      groupRatioMultiplier: 1,
-    })
-    const formattedPricesByGroup = new Map(
+    const baseTier = dynamicTiers[0]
+    const baseTierCondition = formatDynamicTierConditionSummary(
+      baseTier.conditions,
+      t
+    )
+    const basePricesByGroup = new Map(
       availableGroups.map((group) => {
         const ratio = props.groupRatio[group] || 1
         return [
           group,
-          getDynamicFormattedPricesByTier(dynamicTiers, {
+          getDynamicPriceEntries(baseTier, {
             tokenUnit: props.tokenUnit,
             showRechargePrice,
             priceRate: props.priceRate,
             usdExchangeRate: props.usdExchangeRate,
             groupRatioMultiplier: ratio,
-          }),
+          }).filter((entry) => entry.variable.isBase),
         ] as const
       })
     )
@@ -997,50 +963,54 @@ function GroupPricingSection(props: {
         <div className='space-y-3'>
           {availableGroups.map((group) => {
             const ratio = props.groupRatio[group] || 1
-            const formattedPricesByTier =
-              formattedPricesByGroup.get(group) ??
-              new Map<DynamicPricingTier, Map<string, string>>()
+            const basePrices = basePricesByGroup.get(group) ?? []
 
             return (
-              <div key={group} className='overflow-hidden rounded-lg border'>
-                <div className='bg-muted/20 flex items-center justify-between gap-3 border-b px-3 py-2'>
+              <div key={group} className='flex flex-col gap-3 rounded-lg border p-3'>
+                <div className='flex items-center justify-between gap-3'>
                   <GroupBadge group={group} size='sm' />
                   <span className='text-muted-foreground font-mono text-xs'>
                     {ratio}x
                   </span>
                 </div>
-                <StaticDataTable
-                  className='rounded-none border-0'
-                  tableClassName='text-sm'
-                  headerRowClassName='hover:bg-transparent'
-                  data={dynamicTiers}
-                  getRowKey={(tier, tierIndex) =>
-                    `${group}-${tier.label || tierIndex}`
-                  }
-                  columns={[
-                    {
-                      id: 'tier',
-                      header: t('Tier'),
-                      className: thClass,
-                      cellClassName: 'text-muted-foreground py-2.5',
-                      cell: (tier) => tier.label || t('Default'),
-                    },
-                    ...priceFields.map((fieldEntry) => ({
-                      id: fieldEntry.field,
-                      header: t(fieldEntry.shortLabel),
-                      className: `${thClass} text-right`,
-                      cellClassName: 'py-2.5 text-right font-mono',
-                      cell: (tier: (typeof dynamicTiers)[number]) =>
-                        formattedPricesByTier
-                          .get(tier)
-                          ?.get(fieldEntry.field) ?? '-',
-                    })),
-                  ]}
-                />
+                <div className='flex flex-wrap items-center gap-1.5'>
+                  <Badge variant='secondary'>
+                    {baseTier.label || t('Default')}
+                  </Badge>
+                  <span className='text-muted-foreground text-xs'>
+                    {t('{{count}} tiers', { count: dynamicTiers.length })}
+                  </span>
+                  {baseTierCondition && (
+                    <span className='text-muted-foreground text-xs'>
+                      {baseTierCondition}
+                    </span>
+                  )}
+                </div>
+                <div className='grid grid-cols-2 gap-2'>
+                  {basePrices.map((entry) => (
+                    <div
+                      key={entry.field}
+                      className='bg-muted/40 rounded-md px-3 py-2'
+                    >
+                      <div className='text-muted-foreground text-xs'>
+                        {t(entry.shortLabel)}
+                      </div>
+                      <div className='text-foreground mt-1 font-mono text-sm font-semibold tabular-nums'>
+                        {entry.formatted}
+                        <span className='text-muted-foreground/50 ml-1 text-xs font-normal'>
+                          / {tokenUnitLabel}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )
           })}
-          <p className='text-muted-foreground/40 mt-1.5 text-[10px]'>
+          <p className='text-muted-foreground/60 mt-1.5 text-xs leading-relaxed'>
+            {t('See all tier prices in the official base price table above.')}
+          </p>
+          <p className='text-muted-foreground/40 text-[10px]'>
             {t('Prices shown per')} {tokenUnitLabel} tokens
           </p>
         </div>
@@ -1209,7 +1179,10 @@ export function ModelDetailsContent(props: ModelDetailsContentProps) {
               showRechargePrice={showRechargePrice}
             />
             {isDynamic && (
-              <DynamicPricingBreakdown billingExpr={props.model.billing_expr} />
+              <DynamicPricingBreakdown
+                billingExpr={props.model.billing_expr}
+                collapsible
+              />
             )}
             <GroupPricingSection
               model={props.model}

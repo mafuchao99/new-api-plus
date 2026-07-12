@@ -16,12 +16,17 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Tag as TagIcon } from 'lucide-react'
+import { ChevronDown, Tag as TagIcon } from 'lucide-react'
 import { useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { StaticDataTable } from '@/components/data-table'
 import { Badge } from '@/components/ui/badge'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible'
 import { cn } from '@/lib/utils'
 import { useSystemConfigStore } from '@/stores/system-config-store'
 
@@ -38,76 +43,44 @@ import {
   parseTiersFromExpr,
   splitBillingExprAndRequestRules,
   tryParseRequestRuleExpr,
+  type BillingVar,
   type ParsedTier,
   type RequestCondition,
   type RequestRuleGroup,
-  type TierCondition,
 } from '../lib/billing-expr'
+import { formatDynamicTierConditionSummary } from '../lib/dynamic-price'
 
 type DynamicPricingBreakdownProps = {
   billingExpr: string | null | undefined
-  /**
-   * Label of the tier that fired for the current request. When provided,
-   * the corresponding row is highlighted and tagged as "Matched". Used by
-   * the usage-log details dialog to show which tier the engine selected.
-   */
+  /** Label of the tier that fired for the current request. */
   matchedTierLabel?: string | null
-  /**
-   * Hide cache-pricing columns regardless of the per-tier values. The log
-   * details dialog passes this when the actual request did not consume any
-   * cache tokens, so users only see pricing rows that were relevant to the
-   * call they are inspecting. Defaults to false (show all configured prices).
-   */
+  /** Hide cache-pricing columns when the request did not use cache tokens. */
   hideCacheColumns?: boolean
   /** Apply an additional display-only multiplier, such as a route ratio. */
   priceMultiplier?: number
   /** Hide the component title when embedded in another pricing panel. */
   showHeader?: boolean
+  /** Collapse the detailed table behind a compact pricing summary. */
+  collapsible?: boolean
 }
 
-const VAR_LABELS: Record<string, string> = {
-  p: 'Input',
-  c: 'Output',
-  len: 'Length',
+type TieredPricingTableProps = {
+  tiers: ParsedTier[]
+  visiblePriceFields: BillingVar[]
+  matchedTierLabel?: string | null
+  normalizedMatchedTierLabel: string
+  priceMultiplier: number
+  symbol: string
+  rate: number
+  t: (key: string) => string
 }
-const OP_LABELS: Record<string, string> = {
-  '<': '<',
-  '<=': '≤',
-  '>': '>',
-  '>=': '≥',
-}
+
 const TIME_FUNC_LABELS: Record<string, string> = {
   hour: 'Hour',
   minute: 'Minute',
   weekday: 'Weekday',
   month: 'Month',
   day: 'Day',
-}
-
-function formatTokenHint(value: string | number): string {
-  const n = Number(value)
-  if (!Number.isFinite(n) || n === 0) return ''
-  if (n >= 1_000_000) {
-    return `${(n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1)}M`
-  }
-  if (n >= 1000) {
-    return `${(n / 1000).toFixed(n % 1000 === 0 ? 0 : 1)}K`
-  }
-  return String(n)
-}
-
-function formatConditionSummary(
-  conditions: TierCondition[],
-  t: (key: string) => string
-): string {
-  return conditions
-    .map((c) => {
-      const varLabel = t(VAR_LABELS[c.var] || c.var)
-      const hint = formatTokenHint(c.value)
-      return `${varLabel} ${OP_LABELS[c.op] || c.op} ${hint || c.value}`
-    })
-    .filter(Boolean)
-    .join(' && ')
 }
 
 function describeCondition(
@@ -148,20 +121,194 @@ function describeGroup(
   t: (key: string) => string
 ): string {
   return (group.conditions || [])
-    .map((c) => describeCondition(c, t))
+    .map((condition) => describeCondition(condition, t))
     .join(' && ')
 }
 
-export function DynamicPricingBreakdown({
-  billingExpr,
-  matchedTierLabel,
-  hideCacheColumns = false,
-  priceMultiplier = 1,
-  showHeader = true,
-}: DynamicPricingBreakdownProps) {
+function TieredPricingTable(props: TieredPricingTableProps) {
+  return (
+    <div>
+      <div className='text-foreground mb-2 text-sm font-semibold'>
+        {props.t('Tiered price table')}
+      </div>
+      <div className='flex flex-col gap-1.5 sm:hidden'>
+        {props.tiers.map((tier) => {
+          const conditionSummary = formatDynamicTierConditionSummary(
+            tier.conditions,
+            props.t
+          )
+          const isMatched =
+            props.matchedTierLabel != null &&
+            props.matchedTierLabel !== '' &&
+            tier.label === props.matchedTierLabel
+          return (
+            <div
+              key={`tier-mobile-${tier.label}`}
+              className={cn(
+                'rounded-md border p-2',
+                isMatched && 'border-emerald-500/40 bg-emerald-500/10'
+              )}
+            >
+              <div className='mb-1.5 flex flex-wrap items-center gap-1.5'>
+                <Badge
+                  variant='secondary'
+                  className='bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'
+                >
+                  {tier.label || props.t('Default')}
+                </Badge>
+                {isMatched && (
+                  <Badge
+                    variant='secondary'
+                    className='bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                  >
+                    {props.t('Matched')}
+                  </Badge>
+                )}
+              </div>
+              {conditionSummary && (
+                <div className='text-muted-foreground mb-1.5 text-xs'>
+                  {conditionSummary}
+                </div>
+              )}
+              <div className='grid grid-cols-2 gap-x-3 gap-y-1.5'>
+                {props.visiblePriceFields.map((field) => {
+                  const value = Number(
+                    tier[field.field as keyof ParsedTier] || 0
+                  )
+                  return (
+                    <div key={field.field} className='min-w-0'>
+                      <div className='text-muted-foreground truncate text-[10px] font-medium tracking-wider uppercase'>
+                        {props.t(field.shortLabel)}
+                      </div>
+                      <div className='truncate font-mono text-sm font-semibold'>
+                        {value > 0
+                          ? `${props.symbol}${(value * props.priceMultiplier * props.rate).toFixed(4)}`
+                          : '-'}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+      <StaticDataTable
+        className='hidden rounded-none border-0 sm:block'
+        tableClassName='text-sm'
+        headerRowClassName='hover:bg-transparent'
+        data={props.tiers}
+        getRowKey={(_tier, index) => `tier-${index}`}
+        getRowClassName={(tier) => {
+          const isMatched =
+            props.normalizedMatchedTierLabel !== '' &&
+            normalizeTierLabel(tier.label) === props.normalizedMatchedTierLabel
+          return cn(
+            isMatched &&
+              'bg-emerald-50/70 hover:bg-emerald-50/70 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/10'
+          )
+        }}
+        columns={[
+          {
+            id: 'tier',
+            header: props.t('Tier'),
+            className: 'text-muted-foreground py-2 font-medium',
+            cellClassName: 'py-2.5 align-top',
+            cell: (tier) => {
+              const conditionSummary = formatDynamicTierConditionSummary(
+                tier.conditions,
+                props.t
+              )
+              const isMatched =
+                props.normalizedMatchedTierLabel !== '' &&
+                normalizeTierLabel(tier.label) ===
+                  props.normalizedMatchedTierLabel
+              return (
+                <>
+                  <div className='flex flex-wrap items-center gap-1.5'>
+                    <Badge
+                      variant='secondary'
+                      className='bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'
+                    >
+                      {tier.label || props.t('Default')}
+                    </Badge>
+                    {isMatched && (
+                      <Badge
+                        variant='secondary'
+                        className='bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
+                      >
+                        {props.t('Matched')}
+                      </Badge>
+                    )}
+                  </div>
+                  {conditionSummary && (
+                    <div className='text-muted-foreground mt-1 text-xs'>
+                      {conditionSummary}
+                    </div>
+                  )}
+                </>
+              )
+            },
+          },
+          ...props.visiblePriceFields.map((field) => ({
+            id: field.field as string,
+            header: props.t(field.shortLabel),
+            className: 'text-muted-foreground py-2 text-right font-medium',
+            cellClassName: 'py-2.5 text-right align-top font-mono',
+            cell: (tier: ParsedTier) => {
+              const value = Number(tier[field.field as keyof ParsedTier] || 0)
+              return value > 0 ? (
+                <span className='font-semibold'>
+                  {`${props.symbol}${(value * props.priceMultiplier * props.rate).toFixed(4)}`}
+                </span>
+              ) : (
+                '-'
+              )
+            },
+          })),
+        ]}
+      />
+    </div>
+  )
+}
+
+function ConditionalMultipliers(props: {
+  ruleGroups: RequestRuleGroup[]
+  t: (key: string) => string
+}) {
+  if (props.ruleGroups.length === 0) return null
+
+  return (
+    <div>
+      <div className='text-foreground mb-2 text-sm font-semibold'>
+        {props.t('Conditional multipliers')}
+      </div>
+      <ul className='flex flex-col gap-1.5'>
+        {props.ruleGroups.map((group) => (
+          <li
+            key={`group-${JSON.stringify(group)}`}
+            className='bg-muted/50 flex items-center justify-between gap-3 rounded-md px-3 py-2'
+          >
+            <span className='text-foreground text-sm break-all'>
+              {describeGroup(group, props.t)}
+            </span>
+            <Badge
+              variant='secondary'
+              className='shrink-0 bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300'
+            >
+              {group.multiplier}x
+            </Badge>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+export function DynamicPricingBreakdown(props: DynamicPricingBreakdownProps) {
   const { t } = useTranslation()
-  const expr = billingExpr || ''
-  const currency = useSystemConfigStore((s) => s.config.currency)
+  const expr = props.billingExpr || ''
+  const currency = useSystemConfigStore((state) => state.config.currency)
 
   const { symbol, rate } = useMemo(() => {
     if (currency.quotaDisplayType === 'CNY') {
@@ -169,7 +316,7 @@ export function DynamicPricingBreakdown({
     }
     if (currency.quotaDisplayType === 'CUSTOM') {
       return {
-        symbol: currency.customCurrencySymbol || '¤',
+        symbol: currency.customCurrencySymbol || '$',
         rate: currency.customCurrencyExchangeRate || 1,
       }
     }
@@ -178,30 +325,18 @@ export function DynamicPricingBreakdown({
 
   const { tiers, ruleGroups } = useMemo(() => {
     const split = splitBillingExprAndRequestRules(expr)
-    const parsedTiers = parseTiersFromExpr(split.billingExpr)
-    const parsedRules = tryParseRequestRuleExpr(split.requestRuleExpr || '')
     return {
-      tiers: parsedTiers,
-      ruleGroups: parsedRules || [],
+      tiers: parseTiersFromExpr(split.billingExpr),
+      ruleGroups: tryParseRequestRuleExpr(split.requestRuleExpr || '') || [],
     }
   }, [expr])
 
-  const hasTiers = tiers.length > 0
-  const hasRules = ruleGroups.length > 0
-  const normalizedMatchedTierLabel = normalizeTierLabel(
-    matchedTierLabel ?? undefined
-  )
-  const effectivePriceMultiplier =
-    Number.isFinite(priceMultiplier) && priceMultiplier >= 0
-      ? priceMultiplier
-      : 1
-
   if (!expr) return null
 
-  if (!hasTiers) {
+  if (tiers.length === 0) {
     return (
       <section className='min-w-0 py-4'>
-        {showHeader && (
+        {props.showHeader !== false && (
           <div className='mb-3 flex items-center gap-2'>
             <span className='inline-flex size-6 items-center justify-center rounded-lg bg-amber-100 text-amber-700 shadow-sm dark:bg-amber-500/20 dark:text-amber-300'>
               <TagIcon className='size-3.5' />
@@ -226,198 +361,111 @@ export function DynamicPricingBreakdown({
     )
   }
 
-  const visiblePriceFields = BILLING_PRICING_VARS.filter((v) => {
-    if (!hasTiers) return false
-    if (hideCacheColumns && v.group === 'cache') return false
+  const priceMultiplier =
+    Number.isFinite(props.priceMultiplier) && (props.priceMultiplier ?? 0) >= 0
+      ? (props.priceMultiplier ?? 1)
+      : 1
+  const visiblePriceFields = BILLING_PRICING_VARS.filter((field) => {
+    if (props.hideCacheColumns && field.group === 'cache') return false
     return tiers.some(
-      (tier) => Number(tier[v.field as string as keyof ParsedTier] || 0) > 0
+      (tier) => Number(tier[field.field as keyof ParsedTier] || 0) > 0
     )
   })
+  const primaryPriceFields = visiblePriceFields.filter((field) => field.isBase)
+  const baseTier = tiers[0]
+  const baseTierCondition = formatDynamicTierConditionSummary(
+    baseTier.conditions,
+    t
+  )
+
+  const detail = (
+    <div className='flex flex-col gap-4'>
+      <TieredPricingTable
+        tiers={tiers}
+        visiblePriceFields={visiblePriceFields}
+        matchedTierLabel={props.matchedTierLabel}
+        normalizedMatchedTierLabel={normalizeTierLabel(
+          props.matchedTierLabel ?? undefined
+        )}
+        priceMultiplier={priceMultiplier}
+        symbol={symbol}
+        rate={rate}
+        t={t}
+      />
+      <ConditionalMultipliers ruleGroups={ruleGroups} t={t} />
+    </div>
+  )
+
+  const header =
+    props.showHeader !== false ? (
+      <div className='mb-3 flex items-start gap-2 sm:mb-4'>
+        <span className='mt-0.5 inline-flex size-6 items-center justify-center rounded-lg bg-amber-100 text-amber-700 shadow-sm dark:bg-amber-500/20 dark:text-amber-300'>
+          <TagIcon className='size-3.5' />
+        </span>
+        <div>
+          <div className='text-foreground text-base font-medium'>
+            {t('Dynamic Pricing')}
+          </div>
+          <div className='text-muted-foreground text-xs'>
+            {t('Prices vary by usage tier and request conditions')}
+          </div>
+        </div>
+      </div>
+    ) : null
+
+  if (!props.collapsible) {
+    return (
+      <section className='min-w-0 py-3 sm:py-4'>
+        {header}
+        {detail}
+      </section>
+    )
+  }
 
   return (
     <section className='min-w-0 py-3 sm:py-4'>
-      {showHeader && (
-        <div className='mb-3 flex items-start gap-2 sm:mb-4'>
-          <span className='mt-0.5 inline-flex size-6 items-center justify-center rounded-lg bg-amber-100 text-amber-700 shadow-sm dark:bg-amber-500/20 dark:text-amber-300'>
-            <TagIcon className='size-3.5' />
-          </span>
-          <div>
-            <div className='text-foreground text-base font-medium'>
-              {t('Dynamic Pricing')}
-            </div>
-            <div className='text-muted-foreground text-xs'>
-              {t('Prices vary by usage tier and request conditions')}
-            </div>
+      {header}
+      <Collapsible className='rounded-lg border'>
+        <div className='flex flex-col gap-3 p-3'>
+          <div className='flex flex-wrap items-center gap-1.5'>
+            <Badge variant='secondary'>{baseTier.label || t('Default')}</Badge>
+            <span className='text-muted-foreground text-xs'>
+              {t('{{count}} tiers', { count: tiers.length })}
+            </span>
+          {baseTierCondition && (
+            <span className='text-muted-foreground text-xs'>
+              {baseTierCondition}
+            </span>
+          )}
           </div>
-        </div>
-      )}
-
-      {hasTiers && (
-        <div className='mb-3 sm:mb-4'>
-          <div className='text-foreground mb-2 text-sm font-semibold'>
-            {t('Tiered price table')}
-          </div>
-          <div className='space-y-1.5 sm:hidden'>
-            {tiers.map((tier) => {
-              const condSummary = formatConditionSummary(tier.conditions, t)
-              const isMatched =
-                matchedTierLabel != null &&
-                matchedTierLabel !== '' &&
-                tier.label === matchedTierLabel
-              return (
-                <div
-                  key={`tier-mobile-${tier.label}`}
-                  className={cn(
-                    'rounded-md border p-2',
-                    isMatched && 'border-emerald-500/40 bg-emerald-500/10'
-                  )}
-                >
-                  <div className='mb-1.5 flex flex-wrap items-center gap-1.5'>
-                    <Badge
-                      variant='secondary'
-                      className='bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'
-                    >
-                      {tier.label || t('Default')}
-                    </Badge>
-                    {isMatched && (
-                      <Badge
-                        variant='secondary'
-                        className='bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
-                      >
-                        {t('Matched')}
-                      </Badge>
-                    )}
-                  </div>
-                  {condSummary && (
-                    <div className='text-muted-foreground mb-1.5 text-xs'>
-                      {condSummary}
+          {props.showHeader === false && primaryPriceFields.length > 0 && (
+            <div className='grid grid-cols-2 gap-2'>
+              {primaryPriceFields.map((field) => {
+                const value = Number(
+                  baseTier[field.field as keyof ParsedTier] || 0
+                )
+                return (
+                  <div key={field.field} className='bg-muted/40 rounded-md px-3 py-2'>
+                    <div className='text-muted-foreground text-xs'>
+                      {t(field.shortLabel)}
                     </div>
-                  )}
-                  <div className='grid grid-cols-2 gap-x-3 gap-y-1.5'>
-                    {visiblePriceFields.map((v) => {
-                      const value = Number(
-                        tier[v.field as string as keyof ParsedTier] || 0
-                      )
-                      return (
-                        <div key={v.field} className='min-w-0'>
-                          <div className='text-muted-foreground truncate text-[10px] font-medium tracking-wider uppercase'>
-                            {t(v.shortLabel)}
-                          </div>
-                          <div className='truncate font-mono text-sm font-semibold'>
-                            {value > 0
-                              ? `${symbol}${(value * effectivePriceMultiplier * rate).toFixed(4)}`
-                              : '-'}
-                          </div>
-                        </div>
-                      )
-                    })}
+                    <div className='text-foreground mt-1 font-mono text-sm font-semibold tabular-nums'>
+                      {`${symbol}${(value * priceMultiplier * rate).toFixed(4)}`}
+                    </div>
                   </div>
-                </div>
-              )
-            })}
-          </div>
-          <StaticDataTable
-            className='hidden rounded-none border-0 sm:block'
-            tableClassName='text-sm'
-            headerRowClassName='hover:bg-transparent'
-            data={tiers}
-            getRowKey={(_tier, index) => `tier-${index}`}
-            getRowClassName={(tier) => {
-              const isMatched =
-                normalizedMatchedTierLabel !== '' &&
-                normalizeTierLabel(tier.label) === normalizedMatchedTierLabel
-              return cn(
-                isMatched &&
-                  'bg-emerald-50/70 hover:bg-emerald-50/70 dark:bg-emerald-500/10 dark:hover:bg-emerald-500/10'
-              )
-            }}
-            columns={[
-              {
-                id: 'tier',
-                header: t('Tier'),
-                className: 'text-muted-foreground py-2 font-medium',
-                cellClassName: 'py-2.5 align-top',
-                cell: (tier) => {
-                  const condSummary = formatConditionSummary(tier.conditions, t)
-                  const isMatched =
-                    normalizedMatchedTierLabel !== '' &&
-                    normalizeTierLabel(tier.label) ===
-                      normalizedMatchedTierLabel
-                  return (
-                    <>
-                      <div className='flex flex-wrap items-center gap-1.5'>
-                        <Badge
-                          variant='secondary'
-                          className='bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300'
-                        >
-                          {tier.label || t('Default')}
-                        </Badge>
-                        {isMatched && (
-                          <Badge
-                            variant='secondary'
-                            className='bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300'
-                          >
-                            {t('Matched')}
-                          </Badge>
-                        )}
-                      </div>
-                      {condSummary && (
-                        <div className='text-muted-foreground mt-1 text-xs'>
-                          {condSummary}
-                        </div>
-                      )}
-                    </>
-                  )
-                },
-              },
-              ...visiblePriceFields.map((v) => ({
-                id: v.field as string,
-                header: t(v.shortLabel),
-                className: 'text-muted-foreground py-2 text-right font-medium',
-                cellClassName: 'py-2.5 text-right align-top font-mono',
-                cell: (tier: ParsedTier) => {
-                  const value = Number(
-                    tier[v.field as string as keyof ParsedTier] || 0
-                  )
-                  return value > 0 ? (
-                    <span className='font-semibold'>
-                      {`${symbol}${(value * effectivePriceMultiplier * rate).toFixed(4)}`}
-                    </span>
-                  ) : (
-                    '-'
-                  )
-                },
-              })),
-            ]}
-          />
+                )
+              })}
+            </div>
+          )}
         </div>
-      )}
-
-      {hasRules && (
-        <div>
-          <div className='text-foreground mb-2 text-sm font-semibold'>
-            {t('Conditional multipliers')}
-          </div>
-          <ul className='space-y-1.5'>
-            {ruleGroups.map((group) => (
-              <li
-                key={`group-${JSON.stringify(group)}`}
-                className='bg-muted/50 flex items-center justify-between gap-3 rounded-md px-3 py-2'
-              >
-                <span className='text-foreground text-sm break-all'>
-                  {describeGroup(group, t)}
-                </span>
-                <Badge
-                  variant='secondary'
-                  className='shrink-0 bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-300'
-                >
-                  {group.multiplier}x
-                </Badge>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+        <CollapsibleTrigger className='group flex w-full items-center justify-between border-t px-3 py-2 text-left text-sm font-medium'>
+          <span>{t('View full tiered price table')}</span>
+          <ChevronDown className='text-muted-foreground size-4 transition-transform group-data-[panel-open]:rotate-180' />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className='p-3'>{detail}</div>
+        </CollapsibleContent>
+      </Collapsible>
     </section>
   )
 }

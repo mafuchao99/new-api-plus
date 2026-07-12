@@ -24,7 +24,6 @@ import {
   Route as RouteIcon,
   Search,
   ShieldCheck,
-  SlidersHorizontal,
 } from 'lucide-react'
 import { useMemo, useState, type ReactNode } from 'react'
 import { useTranslation } from 'react-i18next'
@@ -33,20 +32,25 @@ import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { DynamicPricingBreakdown } from '@/features/pricing/components/dynamic-pricing-breakdown'
-import { formatBillingCurrencyFromUSD } from '@/lib/currency'
-import { cn } from '@/lib/utils'
+import {
+  Select,
+  SelectContent,
+  SelectGroup,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 
 import { getRoutePricing } from './api'
+import {
+  ModelRouteListRow,
+  RoutePricingDetailsDrawer,
+} from './components/model-route-list'
 import type {
-  RouteBillingMode,
   RoutePricingCategory,
   RoutePricingData,
-  RoutePricingLine,
   RoutePricingModel,
-  RoutePricingPriceItem,
 } from './types'
 
 type FilterOption = {
@@ -69,39 +73,6 @@ const LOADING_CARD_IDS = ['loading-1', 'loading-2', 'loading-3', 'loading-4']
 function formatRatio(value?: number | null) {
   if (value == null) return '-'
   return `${value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}x`
-}
-
-function getBillingModeLabelKey(mode: RouteBillingMode) {
-  if (mode === 'per_request') return 'Per request'
-  if (mode === 'expression') return 'Expression'
-  return 'Ratio'
-}
-
-function formatPriceAmount(value?: number | null) {
-  return formatBillingCurrencyFromUSD(value, {
-    digitsLarge: 2,
-    digitsSmall: 6,
-    abbreviate: false,
-    minimumNonZero: 0.000001,
-  })
-}
-
-function formatPriceItemValue(
-  item: RoutePricingPriceItem,
-  translate: (key: string) => string
-) {
-  if (item.amount != null) {
-    const unit = item.unit === 'request' ? translate('request') : item.unit
-    return unit
-      ? `${formatPriceAmount(item.amount)} / ${unit}`
-      : formatPriceAmount(item.amount)
-  }
-
-  if (item.text) {
-    return item.translate_text ? translate(item.text) : item.text
-  }
-
-  return '-'
 }
 
 function getOptionLabel(
@@ -191,11 +162,11 @@ function buildCategoryLabelMap(
 
 function LoadingCards() {
   return (
-    <div className='grid gap-4 2xl:grid-cols-2'>
+    <div className='flex flex-col gap-2'>
       {LOADING_CARD_IDS.map((id) => (
         <div
           key={id}
-          className='bg-muted/40 h-64 animate-pulse rounded-lg border'
+          className='bg-muted/40 h-24 animate-pulse rounded-lg border'
         />
       ))}
     </div>
@@ -225,189 +196,6 @@ function SummaryMetric(props: {
         {props.hint}
       </p>
     </div>
-  )
-}
-
-function PriceBreakdown(props: {
-  items: RoutePricingPriceItem[]
-  align?: 'left' | 'right'
-}) {
-  const { t } = useTranslation()
-
-  return (
-    <div
-      className={cn(
-        'flex flex-wrap gap-1.5',
-        props.align === 'right' && 'sm:justify-end'
-      )}
-    >
-      {props.items.map((item) => (
-        <div
-          key={`${item.type}-${item.label_key}-${item.text || item.amount || 0}`}
-          className='bg-muted/60 rounded-md px-2 py-1 text-[11px] leading-tight'
-        >
-          <span className='text-muted-foreground'>{t(item.label_key)}</span>
-          <span className='ml-1 font-semibold tabular-nums'>
-            {formatPriceItemValue(item, t)}
-          </span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-function OfficialPricePanel(props: {
-  items: RoutePricingPriceItem[]
-  billingExpr?: string
-}) {
-  const { t } = useTranslation()
-
-  return (
-    <div className='bg-muted/40 rounded-lg p-3'>
-      <div className='mb-2'>
-        <div className='text-muted-foreground text-xs font-medium'>
-          {t('Official base price')}
-        </div>
-        <p className='text-muted-foreground/70 mt-1 text-[11px] leading-relaxed'>
-          {t('Reference price before route multipliers are applied.')}
-        </p>
-      </div>
-      {props.billingExpr ? (
-        <DynamicPricingBreakdown
-          billingExpr={props.billingExpr}
-          showHeader={false}
-        />
-      ) : (
-        <div
-          className={cn(
-            'grid gap-2',
-            props.items.length === 1
-              ? 'grid-cols-1'
-              : 'grid-cols-2 sm:grid-cols-4'
-          )}
-        >
-          {props.items.map((item) => (
-            <div
-              key={`${item.type}-${item.label_key}-${item.text || item.amount || 0}`}
-              className='bg-background/70 rounded-md px-3 py-2'
-            >
-              <div className='text-muted-foreground text-xs'>
-                {t(item.label_key)}
-              </div>
-              <div className='mt-1 text-sm font-semibold tabular-nums'>
-                {formatPriceItemValue(item, t)}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
-}
-
-function RouteLineRow(props: { line: RoutePricingLine }) {
-  const { t } = useTranslation()
-  const ratioLabel =
-    props.line.billing_mode === 'ratio' ? formatRatio(props.line.ratio) : null
-  const billingLabel = ratioLabel
-    ? `${t('Route multiplier')} ${ratioLabel}`
-    : t(getBillingModeLabelKey(props.line.billing_mode))
-  const routePriceHint = ratioLabel
-    ? t('Route price = official base price x route multiplier.')
-    : t('Charged according to this route rule.')
-  const hasExpressionBreakdown = Boolean(props.line.billing_expr)
-
-  return (
-    <div className='border-t px-4 py-4 text-sm'>
-      <div
-        className={cn(
-          'flex flex-col gap-3',
-          !hasExpressionBreakdown &&
-            'lg:flex-row lg:items-start lg:justify-between'
-        )}
-      >
-        <div className='min-w-0'>
-          <div className='flex flex-wrap items-center gap-1.5'>
-            <div className='font-medium'>{props.line.name}</div>
-            {props.line.is_default && (
-              <Badge variant='secondary'>{t('Default')}</Badge>
-            )}
-            {props.line.is_model_override && (
-              <Badge variant='outline'>{t('Model override')}</Badge>
-            )}
-            <Badge
-              variant={
-                props.line.billing_mode === 'ratio' ? 'default' : 'secondary'
-              }
-              className='tabular-nums'
-            >
-              {billingLabel}
-            </Badge>
-          </div>
-          {props.line.description && (
-            <p className='text-muted-foreground mt-2 max-w-2xl text-xs leading-relaxed'>
-              {props.line.description}
-            </p>
-          )}
-        </div>
-
-        <div
-          className={cn(
-            'rounded-md bg-muted/50 px-3 py-2',
-            !hasExpressionBreakdown && 'lg:min-w-[240px] lg:text-right'
-          )}
-        >
-          <div className='text-muted-foreground mb-1 text-xs'>
-            {t('Estimated route price')}
-          </div>
-          {hasExpressionBreakdown ? (
-            <DynamicPricingBreakdown
-              billingExpr={props.line.billing_expr}
-              priceMultiplier={props.line.expression_multiplier ?? 1}
-              showHeader={false}
-            />
-          ) : (
-            <PriceBreakdown items={props.line.price_items} align='right' />
-          )}
-          <p className='text-muted-foreground/60 mt-1.5 text-[11px] leading-relaxed'>
-            {routePriceHint}
-          </p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function ModelRouteCard(props: { model: RoutePricingModel }) {
-  return (
-    <Card size='sm' className='rounded-lg'>
-      <CardHeader>
-        <div className='min-w-0'>
-          <div className='flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1'>
-            <CardTitle className='truncate text-base font-semibold tracking-normal'>
-              {props.model.id}
-            </CardTitle>
-            {props.model.vendor && (
-              <span className='text-muted-foreground text-sm'>
-                {props.model.vendor}
-              </span>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-
-      <CardContent className='flex flex-col gap-3'>
-        <OfficialPricePanel
-          items={props.model.official_price_items}
-          billingExpr={props.model.billing_expr}
-        />
-        <div className='overflow-hidden rounded-lg border'>
-          {props.model.lines.map((line) => (
-            <RouteLineRow key={line.id} line={line} />
-          ))}
-        </div>
-      </CardContent>
-    </Card>
   )
 }
 
@@ -462,6 +250,7 @@ export function PricingRoutePreview() {
   const [search, setSearch] = useState('')
   const [routeGroup, setRouteGroup] = useState('all')
   const [routeLine, setRouteLine] = useState('all')
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
   const routePricingQuery = useQuery({
     queryKey: ['route-pricing'],
     queryFn: getRoutePricing,
@@ -469,6 +258,10 @@ export function PricingRoutePreview() {
   })
   const routePricingData = routePricingQuery.data ?? EMPTY_ROUTE_PRICING
   const routePricingModels = routePricingData.models
+  const modelsById = useMemo(
+    () => new Map(routePricingModels.map((model) => [model.id, model])),
+    [routePricingModels]
+  )
 
   const categoryById = useMemo(
     () => buildCategoryLabelMap(routePricingData.categories, t),
@@ -482,6 +275,22 @@ export function PricingRoutePreview() {
     () => getRouteLineOptions(routePricingData, routeGroup),
     [routePricingData, routeGroup]
   )
+  const routeGroupSelectItems = useMemo(
+    () =>
+      routeGroupOptions.map((option) => ({
+        value: option.value,
+        label: getOptionLabel(option, t),
+      })),
+    [routeGroupOptions, t]
+  )
+  const routeLineSelectItems = useMemo(
+    () =>
+      routeLineOptions.map((option) => ({
+        value: option.value,
+        label: getOptionLabel(option, t),
+      })),
+    [routeLineOptions, t]
+  )
 
   const filteredModels = useMemo(
     () =>
@@ -494,6 +303,10 @@ export function PricingRoutePreview() {
       ),
     [categoryById, routeGroup, routeLine, routePricingModels, search]
   )
+  const selectedModel = selectedModelId
+    ? modelsById.get(selectedModelId)
+    : null
+  const hasRouteFilters = routeGroup !== 'all' || routeLine !== 'all'
 
   const clearFilters = () => {
     setSearch('')
@@ -531,10 +344,17 @@ export function PricingRoutePreview() {
     )
   } else if (filteredModels.length > 0) {
     pricingContent = (
-      <div className='grid gap-4 2xl:grid-cols-2'>
-        {filteredModels.map((model) => (
-          <ModelRouteCard key={model.id} model={model} />
-        ))}
+      <div className='flex flex-col gap-2'>
+        {filteredModels.map((filteredModel) => {
+          const model = modelsById.get(filteredModel.id) ?? filteredModel
+          return (
+            <ModelRouteListRow
+              key={model.id}
+              model={model}
+              onOpen={() => setSelectedModelId(model.id)}
+            />
+          )
+        })}
       </div>
     )
   } else {
@@ -624,90 +444,77 @@ export function PricingRoutePreview() {
           />
         </div>
 
-        <section className='grid gap-5 xl:grid-cols-[280px_minmax(0,1fr)]'>
-          <aside className='bg-card flex flex-col gap-4 self-start rounded-lg border p-4 xl:sticky xl:top-20'>
-            <div className='flex items-center gap-2'>
-              <SlidersHorizontal className='size-4' />
-              <h2 className='text-sm font-semibold'>
-                {t('Browse by model category')}
-              </h2>
-            </div>
+        <section className='flex min-w-0 flex-col gap-3'>
+          <div className='bg-card flex flex-wrap items-center gap-2 rounded-lg border p-3'>
+            <Select
+              items={routeGroupSelectItems}
+              value={routeGroup}
+              onValueChange={(value) => {
+                if (value == null) return
+                setRouteGroup(value)
+                setRouteLine('all')
+              }}
+            >
+              <SelectTrigger className='max-w-full sm:w-64'>
+                <span className='text-muted-foreground shrink-0 text-xs'>
+                  {t('Model categories')}
+                </span>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {routeGroupSelectItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
 
-            <div className='flex flex-col gap-3'>
-              <div className='text-muted-foreground text-xs font-medium'>
-                {t('Model categories')}
-              </div>
-              <div className='grid gap-2'>
-                {routeGroupOptions.map((option) => {
-                  const isActive = routeGroup === option.value
-                  return (
-                    <button
-                      key={option.value}
-                      type='button'
-                      onClick={() => {
-                        setRouteGroup(option.value)
-                        setRouteLine('all')
-                      }}
-                      className={cn(
-                        'flex h-9 items-center justify-between rounded-md border px-3 text-sm transition-colors',
-                        isActive
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-background hover:bg-muted/50'
-                      )}
-                    >
-                      <span className='flex min-w-0 items-center gap-2'>
-                        <RouteIcon className='size-4 shrink-0' />
-                        <span className='truncate'>
-                          {getOptionLabel(option, t)}
-                        </span>
-                      </span>
-                      {option.count != null && (
-                        <span className='ml-2 text-xs tabular-nums opacity-70'>
-                          {option.count}
-                        </span>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
+            <Select
+              items={routeLineSelectItems}
+              value={routeLine}
+              onValueChange={(value) => {
+                if (value != null) setRouteLine(value)
+              }}
+            >
+              <SelectTrigger className='max-w-full sm:w-64'>
+                <span className='text-muted-foreground shrink-0 text-xs'>
+                  {t('Routes in category')}
+                </span>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectGroup>
+                  {routeLineSelectItems.map((item) => (
+                    <SelectItem key={item.value} value={item.value}>
+                      {item.label}
+                    </SelectItem>
+                  ))}
+                </SelectGroup>
+              </SelectContent>
+            </Select>
 
-            <div className='flex flex-col gap-3'>
-              <div className='text-muted-foreground text-xs font-medium'>
-                {t('Routes in category')}
-              </div>
-              <div className='grid gap-2'>
-                {routeLineOptions.map((option) => {
-                  const isActive = routeLine === option.value
-                  return (
-                    <button
-                      key={option.value}
-                      type='button'
-                      onClick={() => setRouteLine(option.value)}
-                      className={cn(
-                        'flex min-h-9 items-center justify-between rounded-md border px-3 py-2 text-left text-sm transition-colors',
-                        isActive
-                          ? 'bg-primary text-primary-foreground'
-                          : 'bg-background hover:bg-muted/50'
-                      )}
-                    >
-                      <span className='line-clamp-2'>
-                        {getOptionLabel(option, t)}
-                      </span>
-                    </button>
-                  )
-                })}
-              </div>
-            </div>
-
-            <Button variant='outline' size='sm' onClick={clearFilters}>
-              {t('Reset filters')}
-            </Button>
-          </aside>
+            {hasRouteFilters && (
+              <Button variant='ghost' size='sm' onClick={clearFilters}>
+                {t('Reset filters')}
+              </Button>
+            )}
+          </div>
 
           <main className='flex min-w-0 flex-col gap-4'>{pricingContent}</main>
         </section>
       </PageTransition>
+      {selectedModel && (
+        <RoutePricingDetailsDrawer
+          model={selectedModel}
+          open
+          onOpenChange={(open) => {
+            if (!open) setSelectedModelId(null)
+          }}
+        />
+      )}
     </PublicLayout>
   )
 }
