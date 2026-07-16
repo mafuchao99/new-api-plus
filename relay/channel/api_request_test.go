@@ -6,9 +6,77 @@ import (
 	"testing"
 
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
+	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
+
+func TestCopyCodexResponsesHeaders_OnlyForResponses(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		path       string
+		relayMode  int
+		wantCopied bool
+	}{
+		{
+			name:       "responses",
+			path:       "/v1/responses",
+			relayMode:  relayconstant.RelayModeResponses,
+			wantCopied: true,
+		},
+		{
+			name:       "responses compact",
+			path:       "/v1/responses/compact",
+			relayMode:  relayconstant.RelayModeResponsesCompact,
+			wantCopied: true,
+		},
+		{
+			name:       "chat completions",
+			path:       "/v1/chat/completions",
+			relayMode:  relayconstant.RelayModeChatCompletions,
+			wantCopied: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			gin.SetMode(gin.TestMode)
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodPost, tt.path, nil)
+			for _, name := range operation_setting.GetCodexCliPassThroughHeaders() {
+				ctx.Request.Header.Set(name, "client-"+name)
+			}
+			ctx.Request.Header.Add("X-Codex-Turn-State", "checkpointed")
+			ctx.Request.Header.Set("Authorization", "Bearer client-secret")
+			ctx.Request.Header.Set("Cookie", "session=client-secret")
+			ctx.Request.Header.Set("X-Not-Allowlisted", "client-only")
+
+			upstreamHeaders := http.Header{}
+			upstreamHeaders.Set("Authorization", "Bearer upstream-secret")
+			copyCodexResponsesHeaders(&relaycommon.RelayInfo{RelayMode: tt.relayMode}, ctx, &upstreamHeaders)
+
+			for _, name := range operation_setting.GetCodexCliPassThroughHeaders() {
+				if tt.wantCopied {
+					require.Equal(t, "client-"+name, upstreamHeaders.Get(name), name)
+				} else {
+					require.Empty(t, upstreamHeaders.Get(name), name)
+				}
+			}
+			if tt.wantCopied {
+				require.Equal(t, []string{"client-X-Codex-Turn-State", "checkpointed"}, upstreamHeaders.Values("X-Codex-Turn-State"))
+			}
+			require.Equal(t, "Bearer upstream-secret", upstreamHeaders.Get("Authorization"))
+			require.Empty(t, upstreamHeaders.Get("Cookie"))
+			require.Empty(t, upstreamHeaders.Get("X-Not-Allowlisted"))
+		})
+	}
+}
 
 func TestProcessHeaderOverride_ChannelTestSkipsPassthroughRules(t *testing.T) {
 	t.Parallel()

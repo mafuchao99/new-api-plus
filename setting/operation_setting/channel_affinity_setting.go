@@ -65,6 +65,14 @@ var codexCliPassThroughHeaders = []string{
 	"X-OpenAI-Internal-Codex-Responses-Lite",
 }
 
+// GetCodexCliPassThroughHeaders returns an isolated copy of the headers that
+// may be forwarded from Codex clients to Responses-compatible upstreams.
+func GetCodexCliPassThroughHeaders() []string {
+	headers := make([]string, len(codexCliPassThroughHeaders))
+	copy(headers, codexCliPassThroughHeaders)
+	return headers
+}
+
 var claudeCliPassThroughHeaders = []string{
 	"X-Stainless-Arch",
 	"X-Stainless-Lang",
@@ -96,13 +104,11 @@ func buildPassHeaderTemplate(headers []string) map[string]interface{} {
 }
 
 func buildCodexPassHeaderTemplate() map[string]interface{} {
-	requestHeaders := make([]string, 0, len(codexCliPassThroughHeaders))
-	requestHeaders = append(requestHeaders, codexCliPassThroughHeaders...)
 	return map[string]interface{}{
 		"operations": []map[string]interface{}{
 			{
 				"mode":        "pass_headers",
-				"value":       requestHeaders,
+				"value":       GetCodexCliPassThroughHeaders(),
 				"keep_origin": true,
 			},
 		},

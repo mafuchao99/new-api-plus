@@ -56,6 +56,27 @@ func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Hea
 	}
 }
 
+func copyCodexResponsesHeaders(info *common.RelayInfo, c *gin.Context, req *http.Header) {
+	if info == nil || c == nil || c.Request == nil || req == nil {
+		return
+	}
+	if info.RelayMode != constant.RelayModeResponses && info.RelayMode != constant.RelayModeResponsesCompact {
+		return
+	}
+	for _, name := range operation_setting.GetCodexCliPassThroughHeaders() {
+		values := c.Request.Header.Values(name)
+		if len(values) == 0 {
+			continue
+		}
+		req.Del(name)
+		for _, value := range values {
+			if strings.TrimSpace(value) != "" {
+				req.Add(name, value)
+			}
+		}
+	}
+}
+
 const clientHeaderPlaceholderPrefix = "{client_header:"
 
 const (
@@ -320,6 +341,7 @@ func DoApiRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody
 	if err != nil {
 		return nil, fmt.Errorf("setup request header failed: %w", err)
 	}
+	copyCodexResponsesHeaders(info, c, &headers)
 	// 在 SetupRequestHeader 之后应用 Header Override，确保用户设置优先级最高
 	// 这样可以覆盖默认的 Authorization header 设置
 	headerOverride, err := processHeaderOverride(info, c)
