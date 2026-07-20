@@ -16,6 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import { zodResolver } from '@hookform/resolvers/zod'
+import { AlertTriangle, Save } from 'lucide-react'
 import {
   forwardRef,
   useCallback,
@@ -25,10 +27,9 @@ import {
   useState,
 } from 'react'
 import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { AlertTriangle, Save } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
-import { cn } from '@/lib/utils'
+
+import { sideDrawerContentClassName } from '@/components/drawer-layout'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -60,7 +61,8 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { sideDrawerContentClassName } from '@/components/drawer-layout'
+import { cn } from '@/lib/utils'
+
 import {
   EMPTY_LANE_ENABLED,
   EMPTY_LANE_PRICES,
@@ -185,13 +187,11 @@ export const ModelPricingEditorPanel = forwardRef<
         audioRatio: editData.audioRatio || '',
         audioCompletionRatio: editData.audioCompletionRatio || '',
       })
-      setPricingMode(
-        editData.billingMode === 'tiered_expr'
-          ? 'tiered_expr'
-          : editData.price
-            ? 'per-request'
-            : 'per-token'
-      )
+      if (editData.billingMode) {
+        setPricingMode(editData.billingMode)
+      } else {
+        setPricingMode(editData.price ? 'per-request' : 'per-token')
+      }
       setBillingExpr(editData.billingExpr || '')
       setRequestRuleExpr(editData.requestRuleExpr || '')
     } else {
@@ -439,14 +439,22 @@ export const ModelPricingEditorPanel = forwardRef<
       const data: ModelRatioData = {
         name: values.name.trim(),
         billingMode: pricingMode,
-        price: values.price || '',
-        ratio: values.ratio || '',
-        cacheRatio: values.cacheRatio || '',
-        createCacheRatio: values.createCacheRatio || '',
-        completionRatio: values.completionRatio || '',
-        imageRatio: values.imageRatio || '',
-        audioRatio: values.audioRatio || '',
-        audioCompletionRatio: values.audioCompletionRatio || '',
+        price: pricingMode === 'per-token' ? '' : values.price || '',
+        ratio: pricingMode === 'per-request' ? '' : values.ratio || '',
+        cacheRatio:
+          pricingMode === 'per-request' ? '' : values.cacheRatio || '',
+        createCacheRatio:
+          pricingMode === 'per-request' ? '' : values.createCacheRatio || '',
+        completionRatio:
+          pricingMode === 'per-request' ? '' : values.completionRatio || '',
+        imageRatio:
+          pricingMode === 'per-request' ? '' : values.imageRatio || '',
+        audioRatio:
+          pricingMode === 'per-request' ? '' : values.audioRatio || '',
+        audioCompletionRatio:
+          pricingMode === 'per-request'
+            ? ''
+            : values.audioCompletionRatio || '',
       }
 
       if (pricingMode === 'tiered_expr') {

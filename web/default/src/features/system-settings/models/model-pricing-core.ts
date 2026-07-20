@@ -17,7 +17,9 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import * as z from 'zod'
+
 import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
+
 import { formatPricingNumber } from './pricing-format'
 
 export const createModelPricingSchema = (t: (key: string) => string) =>
@@ -60,6 +62,19 @@ export type ModelRatioData = {
   billingMode?: PricingMode
   billingExpr?: string
   requestRuleExpr?: string
+}
+
+export type PersistedModelPricingDraft = {
+  price?: number
+  ratio?: number
+  cacheRatio?: number
+  createCacheRatio?: number
+  completionRatio?: number
+  imageRatio?: number
+  audioRatio?: number
+  audioCompletionRatio?: number
+  billingMode?: 'tiered_expr'
+  billingExpr?: string
 }
 
 export type PreviewRow = {
@@ -152,6 +167,49 @@ export function toNumberOrNull(value: unknown): number | null {
   if (!hasValue(value) && value !== 0) return null
   const num = Number(value)
   return Number.isFinite(num) ? num : null
+}
+
+export function normalizeModelPricingDraft(
+  data: ModelRatioData
+): PersistedModelPricingDraft {
+  const result: PersistedModelPricingDraft = {}
+  type NumericPricingField = keyof Omit<
+    PersistedModelPricingDraft,
+    'billingMode' | 'billingExpr'
+  >
+  const tokenFields: NumericPricingField[] = [
+    'ratio',
+    'cacheRatio',
+    'createCacheRatio',
+    'completionRatio',
+    'imageRatio',
+    'audioRatio',
+    'audioCompletionRatio',
+  ]
+  let numericFields = tokenFields
+
+  if (data.billingMode === 'tiered_expr') {
+    const combined = combineBillingExpr(
+      data.billingExpr || '',
+      data.requestRuleExpr || ''
+    )
+    if (combined) {
+      result.billingMode = 'tiered_expr'
+      result.billingExpr = combined
+    }
+
+    // Preserve legacy price/ratio values as a fallback while billing settings
+    // propagate between instances. The backend checks billing mode first.
+    numericFields = ['price', ...tokenFields]
+  } else if (data.billingMode === 'per-request') {
+    numericFields = ['price']
+  }
+
+  for (const field of numericFields) {
+    const parsed = toNumberOrNull(data[field])
+    if (parsed !== null) result[field] = parsed
+  }
+  return result
 }
 
 function ratioToBasePrice(ratio: unknown): string {

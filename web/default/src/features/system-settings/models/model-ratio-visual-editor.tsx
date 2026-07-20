@@ -16,6 +16,15 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
+import type {
+  ColumnFiltersState,
+  OnChangeFn,
+  PaginationState,
+  RowSelectionState,
+  VisibilityState,
+  SortingState,
+} from '@tanstack/react-table'
+import { Copy, Plus } from 'lucide-react'
 import {
   useState,
   useMemo,
@@ -26,19 +35,9 @@ import {
   useImperativeHandle,
   useRef,
 } from 'react'
-import {
-  type ColumnFiltersState,
-  type OnChangeFn,
-  type PaginationState,
-  type RowSelectionState,
-  type VisibilityState,
-  type SortingState,
-} from '@tanstack/react-table'
-import { useMediaQuery } from '@/hooks'
-import { Copy, Plus } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/button'
+
 import {
   DataTableBulkActions,
   DataTableToolbar,
@@ -47,8 +46,14 @@ import {
   DataTableView,
   useDataTable,
 } from '@/components/data-table'
-import { combineBillingExpr } from '@/features/pricing/lib/billing-expr'
+import { Button } from '@/components/ui/button'
+import { useMediaQuery } from '@/hooks'
+
 import { safeJsonParse } from '../utils/json-parser'
+import {
+  normalizeModelPricingDraft,
+  type PricingMode,
+} from './model-pricing-core'
 import {
   ModelPricingEditorPanel,
   type ModelPricingEditorPanelHandle,
@@ -208,22 +213,25 @@ const ModelRatioVisualEditorComponent = forwardRef<
     const draftByName = new Map(draftRows.map((row) => [row.name, row]))
     const modelNames = new Set([...savedByName.keys(), ...draftByName.keys()])
 
-    return Array.from(modelNames)
-      .map((name) => {
+    return [...modelNames]
+      .flatMap((name) => {
         const saved = savedByName.get(name)
         const draft = draftByName.get(name)
         const displayed = saved ?? draft
+        if (!displayed) return []
         const savedSignature = getSnapshotSignature(saved)
         const draftSignature = getSnapshotSignature(draft)
 
-        return {
-          ...displayed!,
-          saved,
-          draft,
-          isDraftChanged: savedSignature !== draftSignature,
-          isDraftDeleted: Boolean(saved && !draft),
-          isDraftNew: Boolean(!saved && draft),
-        }
+        return [
+          {
+            ...displayed,
+            saved,
+            draft,
+            isDraftChanged: savedSignature !== draftSignature,
+            isDraftDeleted: Boolean(saved && !draft),
+            isDraftNew: Boolean(!saved && draft),
+          },
+        ]
       })
       .filter((row) => !row.isDraftDeleted)
       .sort((a, b) => a.name.localeCompare(b.name))
@@ -274,6 +282,12 @@ const ModelRatioVisualEditorComponent = forwardRef<
   const handleEdit = useCallback(
     (model: ModelRow) => {
       const editableModel = model.draft ?? model.saved ?? model
+      let editBillingMode: PricingMode = 'per-token'
+      if (editableModel.billingMode === 'tiered_expr') {
+        editBillingMode = 'tiered_expr'
+      } else if (editableModel.price && editableModel.price !== '') {
+        editBillingMode = 'per-request'
+      }
       setEditData({
         name: editableModel.name,
         price: editableModel.price,
@@ -284,12 +298,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
         imageRatio: editableModel.imageRatio,
         audioRatio: editableModel.audioRatio,
         audioCompletionRatio: editableModel.audioCompletionRatio,
-        billingMode:
-          editableModel.billingMode === 'tiered_expr'
-            ? 'tiered_expr'
-            : editableModel.price && editableModel.price !== ''
-              ? 'per-request'
-              : 'per-token',
+        billingMode: editBillingMode,
         billingExpr: editableModel.billingExpr,
         requestRuleExpr: editableModel.requestRuleExpr,
       })
@@ -492,15 +501,7 @@ const ModelRatioVisualEditorComponent = forwardRef<
         { fallback: {}, silent: true }
       )
 
-      const setIfPresent = (
-        target: Record<string, number>,
-        name: string,
-        value: string | undefined
-      ) => {
-        if (!value || value === '') return
-        const parsed = parseFloat(value)
-        if (Number.isFinite(parsed)) target[name] = parsed
-      }
+      const normalized = normalizeModelPricingDraft(data)
 
       targetNames.forEach((name) => {
         delete priceMap[name]
@@ -514,37 +515,31 @@ const ModelRatioVisualEditorComponent = forwardRef<
         delete billingModeMap[name]
         delete billingExprMap[name]
 
-        if (data.billingMode === 'tiered_expr') {
-          const combined = combineBillingExpr(
-            data.billingExpr || '',
-            data.requestRuleExpr || ''
-          )
-          if (combined) {
-            billingModeMap[name] = 'tiered_expr'
-            billingExprMap[name] = combined
-          }
-          // Always serialize ratio/price values for tiered_expr models so they
-          // serve as fallback during multi-instance sync delays. The backend's
-          // ModelPriceHelper checks billing_mode first, so these values are
-          // only consulted when billing_setting hasn't propagated yet.
-          setIfPresent(priceMap, name, data.price)
-          setIfPresent(ratioMap, name, data.ratio)
-          setIfPresent(cacheMap, name, data.cacheRatio)
-          setIfPresent(createCacheMap, name, data.createCacheRatio)
-          setIfPresent(completionMap, name, data.completionRatio)
-          setIfPresent(imageMap, name, data.imageRatio)
-          setIfPresent(audioMap, name, data.audioRatio)
-          setIfPresent(audioCompletionMap, name, data.audioCompletionRatio)
-        } else if (data.price && data.price !== '') {
-          setIfPresent(priceMap, name, data.price)
-        } else {
-          setIfPresent(ratioMap, name, data.ratio)
-          setIfPresent(cacheMap, name, data.cacheRatio)
-          setIfPresent(createCacheMap, name, data.createCacheRatio)
-          setIfPresent(completionMap, name, data.completionRatio)
-          setIfPresent(imageMap, name, data.imageRatio)
-          setIfPresent(audioMap, name, data.audioRatio)
-          setIfPresent(audioCompletionMap, name, data.audioCompletionRatio)
+        if (normalized.price !== undefined) priceMap[name] = normalized.price
+        if (normalized.ratio !== undefined) ratioMap[name] = normalized.ratio
+        if (normalized.cacheRatio !== undefined) {
+          cacheMap[name] = normalized.cacheRatio
+        }
+        if (normalized.createCacheRatio !== undefined) {
+          createCacheMap[name] = normalized.createCacheRatio
+        }
+        if (normalized.completionRatio !== undefined) {
+          completionMap[name] = normalized.completionRatio
+        }
+        if (normalized.imageRatio !== undefined) {
+          imageMap[name] = normalized.imageRatio
+        }
+        if (normalized.audioRatio !== undefined) {
+          audioMap[name] = normalized.audioRatio
+        }
+        if (normalized.audioCompletionRatio !== undefined) {
+          audioCompletionMap[name] = normalized.audioCompletionRatio
+        }
+        if (normalized.billingMode) {
+          billingModeMap[name] = normalized.billingMode
+        }
+        if (normalized.billingExpr) {
+          billingExprMap[name] = normalized.billingExpr
         }
       })
 
@@ -773,24 +768,4 @@ const ModelRatioVisualEditorComponent = forwardRef<
   )
 })
 
-export const ModelRatioVisualEditor = memo(
-  ModelRatioVisualEditorComponent,
-  // Custom equality check - only re-render if JSON props actually changed
-  (prevProps, nextProps) => {
-    return (
-      prevProps.modelPrice === nextProps.modelPrice &&
-      prevProps.modelRatio === nextProps.modelRatio &&
-      prevProps.cacheRatio === nextProps.cacheRatio &&
-      prevProps.createCacheRatio === nextProps.createCacheRatio &&
-      prevProps.completionRatio === nextProps.completionRatio &&
-      prevProps.imageRatio === nextProps.imageRatio &&
-      prevProps.audioRatio === nextProps.audioRatio &&
-      prevProps.audioCompletionRatio === nextProps.audioCompletionRatio &&
-      prevProps.billingMode === nextProps.billingMode &&
-      prevProps.billingExpr === nextProps.billingExpr &&
-      prevProps.onChange === nextProps.onChange &&
-      prevProps.onSave === nextProps.onSave &&
-      prevProps.isSaving === nextProps.isSaving
-    )
-  }
-)
+export const ModelRatioVisualEditor = memo(ModelRatioVisualEditorComponent)
