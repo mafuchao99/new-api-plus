@@ -135,6 +135,7 @@ export function RechargeFormCard({
   const hasWaffoPaymentMethods =
     Array.isArray(waffoPayMethods) && waffoPayMethods.length > 0
   const minTopup = getMinTopupAmount(topupInfo)
+  const belowMinTopup = topupAmount < minTopup
   const redemptionEnabled = topupInfo?.enable_redemption !== false
 
   if (loading) {
@@ -286,8 +287,16 @@ export function RechargeFormCard({
                     value={localAmount}
                     onChange={(e) => handleAmountChange(e.target.value)}
                     min={minTopup}
-                    placeholder={`Minimum ${minTopup}`}
-                    className='h-9 text-base sm:h-10 sm:text-lg'
+                    placeholder={t('Minimum topup amount: {{amount}}', {
+                      amount: minTopup,
+                    })}
+                    aria-invalid={belowMinTopup}
+                    aria-describedby='topup-amount-help'
+                    className={cn(
+                      'h-9 text-base sm:h-10 sm:text-lg',
+                      belowMinTopup &&
+                        'border-destructive focus-visible:ring-destructive'
+                    )}
                   />
                   <div className='bg-muted/30 flex min-h-9 items-center justify-between gap-2 rounded-md border px-3 lg:min-w-52'>
                     <span className='text-muted-foreground truncate text-xs'>
@@ -302,6 +311,17 @@ export function RechargeFormCard({
                     )}
                   </div>
                 </div>
+                <p
+                  id='topup-amount-help'
+                  className={cn(
+                    'text-muted-foreground text-xs',
+                    belowMinTopup && 'text-destructive'
+                  )}
+                >
+                  {t('Minimum topup amount: {{amount}}', {
+                    amount: minTopup,
+                  })}
+                </p>
               </div>
 
               <div className='space-y-2.5 sm:space-y-3'>
@@ -311,15 +331,18 @@ export function RechargeFormCard({
                 {hasStandardPaymentMethods ? (
                   <div className='grid grid-cols-2 gap-1.5 sm:gap-3 lg:grid-cols-3'>
                     {topupInfo?.pay_methods?.map((method) => {
-                      const minTopup = method.min_topup || 0
-                      const disabled = minTopup > topupAmount
+                      const methodMinTopup = Math.max(
+                        minTopup,
+                        method.min_topup || 0
+                      )
+                      const disabled = methodMinTopup > topupAmount
                       const disabledReason = disabled
                         ? t('Minimum topup amount: {{amount}}', {
-                            amount: minTopup,
+                            amount: methodMinTopup,
                           })
                         : undefined
                       const disabledLabel = disabled
-                        ? `${t('Minimum:')} ${minTopup}`
+                        ? `${t('Minimum:')} ${methodMinTopup}`
                         : undefined
 
                       const button = (
