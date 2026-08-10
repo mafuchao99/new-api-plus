@@ -16,9 +16,12 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { Plus } from 'lucide-react'
+import { Add01Icon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 import { useTranslation } from 'react-i18next'
+
 import { Button } from '@/components/ui/button'
+
 import { ApiKeysBatchButtons } from './api-keys-batch-buttons'
 import { useApiKeys } from './api-keys-provider'
 
@@ -29,7 +32,12 @@ export function ApiKeysPrimaryButtons() {
     <div className='flex flex-wrap justify-end gap-2'>
       <ApiKeysBatchButtons />
       <Button size='sm' onClick={() => setOpen('create')}>
-        <Plus className='h-4 w-4' />
+        <HugeiconsIcon
+          icon={Add01Icon}
+          strokeWidth={2}
+          data-icon='inline-start'
+          aria-hidden='true'
+        />
         {t('Create API Key')}
       </Button>
     </div>

@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { api } from '@/lib/api'
+
 import type {
   ApiKey,
   ApiResponse,
@@ -28,6 +29,7 @@ import type {
   AdminApiKeyRouteLockPayload,
   ApiKeyFormData,
   ApiKeyRouteOptionsResponse,
+  BatchDisableApiKeysResult,
 } from './types'
 
 // ============================================================================
@@ -97,6 +99,15 @@ export async function batchCreateApiKeysFromCsv(
   const formData = new FormData()
   formData.append('file', file)
   const res = await api.post('/api/token/batch/create', formData)
+  return res.data
+}
+
+export async function batchDisableApiKeysFromCsv(
+  file: File
+): Promise<ApiResponse<BatchDisableApiKeysResult>> {
+  const formData = new FormData()
+  formData.append('file', file)
+  const res = await api.post('/api/token/batch/disable', formData)
   return res.data
 }
 

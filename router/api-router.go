@@ -298,6 +298,7 @@ func SetApiRouter(router *gin.Engine) {
 			tokenRoute.DELETE("/:id", controller.DeleteToken)
 			tokenRoute.POST("/batch", controller.DeleteTokenBatch)
 			tokenRoute.POST("/batch/create", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.BatchCreateTokens)
+			tokenRoute.POST("/batch/disable", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.BatchDisableTokens)
 			tokenRoute.POST("/batch/keys", middleware.CriticalRateLimit(), middleware.DisableCache(), controller.GetTokenKeysBatch)
 		}
 

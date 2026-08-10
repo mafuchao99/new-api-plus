@@ -384,6 +384,105 @@ func GetExistingUserTokenNames(userId int, names []string) ([]string, error) {
 	return existingNames, nil
 }
 
+type BatchDisableTokenResult struct {
+	DisabledCount        int
+	MissingNames         []string
+	AlreadyDisabledNames []string
+}
+
+func BatchDisableUserTokensByNames(userId int, names []string) (BatchDisableTokenResult, error) {
+	result := BatchDisableTokenResult{
+		MissingNames:         make([]string, 0),
+		AlreadyDisabledNames: make([]string, 0),
+	}
+	if userId <= 0 || len(names) == 0 {
+		return result, errors.New("userId 或 names 无效")
+	}
+
+	uniqueNames := make([]string, 0, len(names))
+	displayNames := make(map[string]string, len(names))
+	for _, name := range names {
+		trimmedName := strings.TrimSpace(name)
+		normalizedName := strings.ToLower(trimmedName)
+		if normalizedName == "" {
+			continue
+		}
+		if _, exists := displayNames[normalizedName]; exists {
+			continue
+		}
+		displayNames[normalizedName] = trimmedName
+		uniqueNames = append(uniqueNames, normalizedName)
+	}
+	if len(uniqueNames) == 0 {
+		return result, errors.New("names 不能为空")
+	}
+
+	var matchedTokens []Token
+	const chunkSize = 500
+	for start := 0; start < len(uniqueNames); start += chunkSize {
+		end := start + chunkSize
+		if end > len(uniqueNames) {
+			end = len(uniqueNames)
+		}
+		var chunkTokens []Token
+		if err := DB.Select("id", commonKeyCol, "name", "status").
+			Where("user_id = ? AND LOWER(name) IN ?", userId, uniqueNames[start:end]).
+			Find(&chunkTokens).Error; err != nil {
+			return result, err
+		}
+		matchedTokens = append(matchedTokens, chunkTokens...)
+	}
+
+	matchedByName := make(map[string][]Token, len(matchedTokens))
+	for _, token := range matchedTokens {
+		normalizedName := strings.ToLower(token.Name)
+		matchedByName[normalizedName] = append(matchedByName[normalizedName], token)
+	}
+
+	tokenIds := make([]int, 0, len(matchedTokens))
+	tokenKeys := make([]string, 0, len(matchedTokens))
+	for _, normalizedName := range uniqueNames {
+		tokens := matchedByName[normalizedName]
+		if len(tokens) == 0 {
+			result.MissingNames = append(result.MissingNames, displayNames[normalizedName])
+			continue
+		}
+
+		disabledCount := 0
+		for _, token := range tokens {
+			if token.Status == common.TokenStatusDisabled {
+				disabledCount++
+				continue
+			}
+			tokenIds = append(tokenIds, token.Id)
+			tokenKeys = append(tokenKeys, token.Key)
+		}
+		if disabledCount == len(tokens) {
+			result.AlreadyDisabledNames = append(result.AlreadyDisabledNames, displayNames[normalizedName])
+		}
+	}
+
+	if len(tokenIds) == 0 {
+		return result, nil
+	}
+	updateResult := DB.Model(&Token{}).
+		Where("user_id = ? AND id IN ?", userId, tokenIds).
+		Update("status", common.TokenStatusDisabled)
+	if updateResult.Error != nil {
+		return result, updateResult.Error
+	}
+	result.DisabledCount = int(updateResult.RowsAffected)
+
+	if common.RedisEnabled {
+		gopool.Go(func() {
+			for _, key := range tokenKeys {
+				_ = cacheDeleteToken(key)
+			}
+		})
+	}
+	return result, nil
+}
+
 func IsUserTokenNameDuplicated(userId int, tokenId int, name string) (bool, error) {
 	if userId == 0 || name == "" {
 		return false, nil

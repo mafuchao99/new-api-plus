@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -16,6 +17,8 @@ import (
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 	"github.com/glebarez/sqlite"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -619,4 +622,47 @@ func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
 	if strings.Contains(unauthorizedRecorder.Body.String(), token.Key) {
 		t.Fatalf("unauthorized key response leaked raw token key: %s", unauthorizedRecorder.Body.String())
 	}
+}
+
+func TestBatchDisableTokensUsesCsvNamesAndCurrentUserScope(t *testing.T) {
+	db := setupTokenControllerTestDB(t)
+	enabledToken := seedToken(t, db, 1, "Alpha", "alpha1234token5678")
+	alreadyDisabledToken := seedToken(t, db, 1, "Beta", "beta1234token5678")
+	require.NoError(t, db.Model(alreadyDisabledToken).Update("status", common.TokenStatusDisabled).Error)
+	otherUserToken := seedToken(t, db, 2, "ALPHA", "other1234token5678")
+
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("file", "api-keys.csv")
+	require.NoError(t, err)
+	_, err = part.Write([]byte("name,api_key,url,剩余金额\nALPHA,sk-a,http://localhost,1\nbeta,sk-b,http://localhost,1\nmissing,sk-c,http://localhost,1\nalpha,sk-a,http://localhost,1\n"))
+	require.NoError(t, err)
+	require.NoError(t, writer.Close())
+
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/token/batch/disable", &body)
+	ctx.Request.Header.Set("Content-Type", writer.FormDataContentType())
+	ctx.Set("id", 1)
+	BatchDisableTokens(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	require.True(t, response.Success, response.Message)
+	var result struct {
+		Count                int      `json:"count"`
+		MissingNames         []string `json:"missing_names"`
+		AlreadyDisabledNames []string `json:"already_disabled_names"`
+	}
+	require.NoError(t, common.Unmarshal(response.Data, &result))
+	assert.Equal(t, 1, result.Count)
+	assert.Equal(t, []string{"missing"}, result.MissingNames)
+	assert.Equal(t, []string{"beta"}, result.AlreadyDisabledNames)
+
+	var refreshedEnabledToken model.Token
+	require.NoError(t, db.First(&refreshedEnabledToken, enabledToken.Id).Error)
+	assert.Equal(t, common.TokenStatusDisabled, refreshedEnabledToken.Status)
+
+	var refreshedOtherUserToken model.Token
+	require.NoError(t, db.First(&refreshedOtherUserToken, otherUserToken.Id).Error)
+	assert.Equal(t, common.TokenStatusEnabled, refreshedOtherUserToken.Status)
 }

@@ -17,10 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useRef, useState, type ChangeEvent } from 'react'
-import { Download, Loader2, Upload } from 'lucide-react'
+import { FileDownloadIcon, FileUploadIcon } from '@hugeicons/core-free-icons'
+import { HugeiconsIcon } from '@hugeicons/react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+
 import { Button } from '@/components/ui/button'
+import { ButtonGroup } from '@/components/ui/button-group'
 import {
   Dialog,
   DialogClose,
@@ -30,24 +33,22 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { Spinner } from '@/components/ui/spinner'
+
 import {
   batchCreateApiKeysFromCsv,
   fetchTokenKeysBatch,
   getApiKeys,
 } from '../api'
 import type { ApiKey } from '../types'
+import { ApiKeysBatchDisableButton } from './api-keys-batch-disable-button'
 import { useApiKeys } from './api-keys-provider'
 
-const CSV_HEADERS = [
-  'name',
-  'api_key',
-  'url',
-  '剩余金额',
-] as const
+const CSV_HEADERS = ['name', 'api_key', 'url', '剩余金额'] as const
 
 function escapeCsvValue(value: string | number | boolean | null | undefined) {
   const text = value == null ? '' : String(value)
-  return `"${text.replace(/"/g, '""')}"`
+  return `"${text.replaceAll('"', '""')}"`
 }
 
 function downloadCsv(filename: string, rows: (string | number | boolean)[][]) {
@@ -103,11 +104,12 @@ async function fetchFullKeys(ids: number[]) {
 export function ApiKeysBatchButtons() {
   const { t } = useTranslation()
   const { selectedApiKeys, triggerRefresh } = useApiKeys()
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const createFileInputRef = useRef<HTMLInputElement>(null)
   const [isImporting, setIsImporting] = useState(false)
   const [isExporting, setIsExporting] = useState(false)
   const [duplicateNames, setDuplicateNames] = useState<string[]>([])
   const [duplicateDialogOpen, setDuplicateDialogOpen] = useState(false)
+  const isBusy = isImporting || isExporting
 
   const handleImportFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -132,7 +134,7 @@ export function ApiKeysBatchButtons() {
       } else {
         toast.error(result.message || t('Failed to import API keys from CSV'))
       }
-    } catch (_error) {
+    } catch {
       toast.error(t('Failed to import API keys from CSV'))
     } finally {
       setIsImporting(false)
@@ -160,16 +162,13 @@ export function ApiKeysBatchButtons() {
           apiKey.unlimited_quota ? -1 : apiKey.remain_quota / 500000,
         ]),
       ]
-      downloadCsv(
-        `api-keys-${new Date().toISOString().slice(0, 10)}.csv`,
-        rows
-      )
+      downloadCsv(`api-keys-${new Date().toISOString().slice(0, 10)}.csv`, rows)
       toast.success(
         t('Successfully exported {{count}} API key(s)', {
           count: apiKeys.length,
         })
       )
-    } catch (_error) {
+    } catch {
       toast.error(t('Failed to export API keys'))
     } finally {
       setIsExporting(false)
@@ -179,38 +178,55 @@ export function ApiKeysBatchButtons() {
   return (
     <>
       <input
-        ref={fileInputRef}
+        ref={createFileInputRef}
         type='file'
         accept='.csv,text/csv'
         className='hidden'
         onChange={handleImportFile}
       />
-      <Button
-        variant='outline'
-        size='sm'
-        onClick={() => fileInputRef.current?.click()}
-        disabled={isImporting || isExporting}
-      >
-        {isImporting ? (
-          <Loader2 className='h-4 w-4 animate-spin' />
-        ) : (
-          <Upload className='h-4 w-4' />
-        )}
-        {t('Batch Create')}
-      </Button>
-      <Button
-        variant='outline'
-        size='sm'
-        onClick={handleExport}
-        disabled={isImporting || isExporting}
-      >
-        {isExporting ? (
-          <Loader2 className='h-4 w-4 animate-spin' />
-        ) : (
-          <Download className='h-4 w-4' />
-        )}
-        {t('Batch Export')}
-      </Button>
+      <ButtonGroup aria-label={t('Batch API key actions')}>
+        <Button
+          variant='outline'
+          size='sm'
+          aria-label={t('Batch Create')}
+          title={t('Batch Create')}
+          onClick={() => createFileInputRef.current?.click()}
+          disabled={isBusy}
+        >
+          {isImporting ? (
+            <Spinner data-icon='inline-start' />
+          ) : (
+            <HugeiconsIcon
+              icon={FileUploadIcon}
+              strokeWidth={2}
+              data-icon='inline-start'
+              aria-hidden='true'
+            />
+          )}
+          <span className='hidden sm:inline'>{t('Batch Create')}</span>
+        </Button>
+        <Button
+          variant='outline'
+          size='sm'
+          aria-label={t('Batch Export')}
+          title={t('Batch Export')}
+          onClick={handleExport}
+          disabled={isBusy}
+        >
+          {isExporting ? (
+            <Spinner data-icon='inline-start' />
+          ) : (
+            <HugeiconsIcon
+              icon={FileDownloadIcon}
+              strokeWidth={2}
+              data-icon='inline-start'
+              aria-hidden='true'
+            />
+          )}
+          <span className='hidden sm:inline'>{t('Batch Export')}</span>
+        </Button>
+        <ApiKeysBatchDisableButton disabled={isBusy} />
+      </ButtonGroup>
       <Dialog open={duplicateDialogOpen} onOpenChange={setDuplicateDialogOpen}>
         <DialogContent className='sm:max-w-md'>
           <DialogHeader>
@@ -223,15 +239,15 @@ export function ApiKeysBatchButtons() {
               )}
             </DialogDescription>
           </DialogHeader>
-          <div className='max-h-64 overflow-y-auto rounded-md border bg-muted/30 p-2'>
-            <div className='mb-2 text-xs font-medium text-muted-foreground'>
+          <div className='bg-muted/30 max-h-64 overflow-y-auto rounded-md border p-2'>
+            <div className='text-muted-foreground mb-2 text-xs font-medium'>
               {t('Duplicate names')}
             </div>
             <ul className='space-y-1'>
               {duplicateNames.map((name) => (
                 <li
                   key={name}
-                  className='rounded bg-background px-2 py-1 text-sm break-all'
+                  className='bg-background rounded px-2 py-1 text-sm break-all'
                 >
                   {name}
                 </li>

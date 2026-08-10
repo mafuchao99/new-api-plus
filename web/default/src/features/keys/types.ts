@@ -224,6 +224,12 @@ export interface ApiKeyRouteOptionsResponse {
   }
 }
 
+export interface BatchDisableApiKeysResult {
+  count: number
+  missing_names?: string[]
+  already_disabled_names?: string[]
+}
+
 // ============================================================================
 // Dialog Types
 // ============================================================================

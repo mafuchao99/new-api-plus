@@ -411,6 +411,59 @@ func parseBatchCreateTokenCsv(file io.Reader) ([]batchTokenRow, error) {
 	return rows, nil
 }
 
+func parseBatchDisableTokenCsv(file io.Reader) ([]string, error) {
+	reader := csv.NewReader(file)
+	reader.FieldsPerRecord = -1
+	reader.TrimLeadingSpace = true
+
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("CSV 解析失败：%w", err)
+	}
+	if len(records) == 0 {
+		return nil, errors.New("CSV 中没有可禁用的数据")
+	}
+
+	nameIndex := 0
+	startRow := 0
+	for index, header := range records[0] {
+		if normalizeTokenBatchHeader(header) == "name" {
+			nameIndex = index
+			startRow = 1
+			break
+		}
+	}
+	if startRow == 0 && len(records[0]) > 1 {
+		return nil, errors.New("CSV 表头必须包含 name（或 名字、名称）")
+	}
+
+	names := make([]string, 0, len(records)-startRow)
+	seenNames := make(map[string]bool, len(records)-startRow)
+	for rowIndex, record := range records[startRow:] {
+		displayRow := rowIndex + startRow + 1
+		name := ""
+		if nameIndex < len(record) {
+			name = strings.TrimSpace(record[nameIndex])
+		}
+		if name == "" {
+			continue
+		}
+		if len(name) > 50 {
+			return nil, fmt.Errorf("第 %d 行名称超过 50 个字符", displayRow)
+		}
+		normalizedName := strings.ToLower(name)
+		if seenNames[normalizedName] {
+			continue
+		}
+		seenNames[normalizedName] = true
+		names = append(names, name)
+	}
+	if len(names) == 0 {
+		return nil, errors.New("CSV 中没有可禁用的数据")
+	}
+	return names, nil
+}
+
 func BatchCreateTokens(c *gin.Context) {
 	file, err := c.FormFile("file")
 	if err != nil {
@@ -509,6 +562,37 @@ func BatchCreateTokens(c *gin.Context) {
 	common.ApiSuccess(c, gin.H{
 		"count":           len(tokens),
 		"duplicate_names": duplicateNames,
+	})
+}
+
+func BatchDisableTokens(c *gin.Context) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		common.ApiErrorMsg(c, "请上传 CSV 文件")
+		return
+	}
+	openedFile, err := file.Open()
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	defer openedFile.Close()
+
+	names, err := parseBatchDisableTokenCsv(openedFile)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+
+	result, err := model.BatchDisableUserTokensByNames(c.GetInt("id"), names)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, gin.H{
+		"count":                  result.DisabledCount,
+		"missing_names":          result.MissingNames,
+		"already_disabled_names": result.AlreadyDisabledNames,
 	})
 }
 
