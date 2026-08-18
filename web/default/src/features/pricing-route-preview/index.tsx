@@ -17,48 +17,26 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useQuery } from '@tanstack/react-query'
-import {
-  Boxes,
-  Gauge,
-  Layers3,
-  Route as RouteIcon,
-  Search,
-  ShieldCheck,
-} from 'lucide-react'
-import { useMemo, useState, type ReactNode } from 'react'
+import { Layers3, Search, X } from 'lucide-react'
+import { useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { PublicLayout } from '@/components/layout'
 import { PageTransition } from '@/components/page-transition'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 
 import { getRoutePricing } from './api'
+import { ModelRouteCard } from './components/model-route-card'
 import {
-  ModelRouteListRow,
-  RoutePricingDetailsDrawer,
-} from './components/model-route-list'
-import type {
-  RoutePricingCategory,
-  RoutePricingData,
-  RoutePricingModel,
-} from './types'
-
-type FilterOption = {
-  value: string
-  label?: string
-  labelKey?: string
-  count?: number
-}
+  type BillingModeFilter,
+  PricingFilterBar,
+  type PricingSort,
+  type RouteSlotOption,
+} from './components/pricing-filter-bar'
+import { RoutePricingDetailsDrawer } from './components/route-details-drawer'
+import { getOfficialPriceItem } from './lib/model-route-utils'
+import type { RoutePricingData, RoutePricingModel } from './types'
 
 const EMPTY_ROUTE_PRICING: RoutePricingData = {
   categories: [],
@@ -68,263 +46,218 @@ const EMPTY_ROUTE_PRICING: RoutePricingData = {
   per_request_routes: 0,
 }
 
-const LOADING_CARD_IDS = ['loading-1', 'loading-2', 'loading-3', 'loading-4']
-
-function formatRatio(value?: number | null) {
-  if (value == null) return '-'
-  return `${value.toFixed(2).replace(/0+$/, '').replace(/\.$/, '')}x`
-}
-
-function getOptionLabel(
-  option: FilterOption,
-  translate: (key: string) => string
-) {
-  if (option.labelKey) return translate(option.labelKey)
-  return option.label || option.value
-}
+const LOADING_CARD_IDS = [
+  'loading-1',
+  'loading-2',
+  'loading-3',
+  'loading-4',
+  'loading-5',
+  'loading-6',
+]
 
 function getCategoryLabel(
-  category: RoutePricingCategory,
+  category: RoutePricingData['categories'][number],
   translate: (key: string) => string
 ) {
   if (category.name_key) return translate(category.name_key)
   return category.name || category.code || category.id
 }
 
-function getRouteGroupOptions(
-  data: RoutePricingData,
-  translate: (key: string) => string
-): FilterOption[] {
-  const categories = data.categories
-    .filter((category) => category.route_count > 0)
-    .map((category) => ({
-      value: category.id,
-      label: getCategoryLabel(category, translate),
-      count: category.route_count,
-    }))
-
-  return [
-    {
-      value: 'all',
-      labelKey: 'All model categories',
-      count: data.total_routes,
-    },
-    ...categories,
-  ]
-}
-
-function getRouteLineOptions(
-  data: RoutePricingData,
-  selectedCategoryId: string
-): FilterOption[] {
-  const seenRouteIds = new Set<string>()
-  const routes = data.routes
-    .filter(
-      (route) =>
-        selectedCategoryId === 'all' || route.category_id === selectedCategoryId
-    )
-    .filter((route) => {
-      if (seenRouteIds.has(route.id)) return false
-      seenRouteIds.add(route.id)
-      return true
-    })
-    .map((route) => ({
-      value: route.id,
-      label: route.name,
-    }))
-
-  return [{ value: 'all', labelKey: 'All routes in category' }, ...routes]
-}
-
-function getLowestRatio(models: RoutePricingModel[]) {
-  const ratios = models.flatMap((model) =>
-    model.lines
-      .map((line) => line.ratio)
-      .filter(
-        (ratio): ratio is number => typeof ratio === 'number' && ratio > 0
-      )
-  )
-  if (ratios.length === 0) return '-'
-  return formatRatio(Math.min(...ratios))
-}
-
-function buildCategoryLabelMap(
-  categories: RoutePricingCategory[],
-  translate: (key: string) => string
+function getModelSearchText(
+  model: RoutePricingModel,
+  categoryById: Map<string, string>
 ) {
-  return new Map(
-    categories.map((category) => [
-      category.id,
-      getCategoryLabel(category, translate),
-    ])
-  )
+  return [
+    model.id,
+    model.vendor,
+    model.description,
+    ...model.lines.map((line) => line.name),
+    ...model.lines.map((line) => line.description),
+    ...model.lines.map((line) => categoryById.get(line.category_id)),
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+}
+
+function sortModels(models: RoutePricingModel[], sortBy: PricingSort) {
+  const sorted = [...models]
+  if (sortBy === 'name') {
+    sorted.sort((a, b) => a.id.localeCompare(b.id))
+    return sorted
+  }
+  if (sortBy === 'input_asc' || sortBy === 'output_asc') {
+    const priceType = sortBy === 'input_asc' ? 'input' : 'output'
+    const getPrice = (model: RoutePricingModel) =>
+      getOfficialPriceItem(model, priceType)?.amount ?? Number.MAX_VALUE
+    sorted.sort((a, b) => getPrice(a) - getPrice(b) || a.id.localeCompare(b.id))
+    return sorted
+  }
+  sorted.sort((a, b) => {
+    const aDefault = a.lines.some((line) => line.is_default) ? 0 : 1
+    const bDefault = b.lines.some((line) => line.is_default) ? 0 : 1
+    return aDefault - bDefault || a.id.localeCompare(b.id)
+  })
+  return sorted
 }
 
 function LoadingCards() {
   return (
-    <div className='flex flex-col gap-2'>
+    <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
       {LOADING_CARD_IDS.map((id) => (
         <div
           key={id}
-          className='bg-muted/40 h-24 animate-pulse rounded-lg border'
+          className='bg-muted/40 h-44 animate-pulse rounded-xl border'
         />
       ))}
     </div>
   )
 }
 
-function SummaryMetric(props: {
-  icon: ReactNode
-  label: string
-  value: string
-  hint: string
-}) {
-  return (
-    <div className='bg-card rounded-lg border p-4'>
-      <div className='flex items-center gap-2'>
-        <div className='bg-muted flex size-8 items-center justify-center rounded-md'>
-          {props.icon}
-        </div>
-        <div className='min-w-0'>
-          <div className='text-muted-foreground text-xs'>{props.label}</div>
-          <div className='truncate text-lg font-semibold tabular-nums'>
-            {props.value}
-          </div>
-        </div>
-      </div>
-      <p className='text-muted-foreground mt-3 text-xs leading-relaxed'>
-        {props.hint}
-      </p>
-    </div>
-  )
-}
-
-function getVisibleModels(
-  models: RoutePricingModel[],
-  categoryById: Map<string, string>,
-  routeGroup: string,
-  routeLine: string,
-  search: string
-) {
-  const normalizedSearch = search.trim().toLowerCase()
-  const filtered = models
-    .map((model) => {
-      const lines = model.lines.filter((line) => {
-        const matchesRouteGroup =
-          routeGroup === 'all' || line.category_id === routeGroup
-        const matchesRouteLine = routeLine === 'all' || line.id === routeLine
-
-        return matchesRouteGroup && matchesRouteLine
-      })
-
-      return { ...model, lines }
-    })
-    .filter((model) => model.lines.length > 0)
-    .filter((model) => {
-      if (!normalizedSearch) return true
-
-      const searchable = [
-        model.id,
-        model.vendor,
-        model.description,
-        ...model.lines.map((line) => line.name),
-        ...model.lines.map((line) => line.description),
-        ...model.lines.map((line) => categoryById.get(line.category_id)),
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase()
-
-      return searchable.includes(normalizedSearch)
-    })
-
-  return filtered.sort((a, b) => {
-    const aDefault = a.lines.some((line) => line.is_default) ? 0 : 1
-    const bDefault = b.lines.some((line) => line.is_default) ? 0 : 1
-    return aDefault - bDefault || a.id.localeCompare(b.id)
-  })
-}
-
 export function PricingRoutePreview() {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
-  const [routeGroup, setRouteGroup] = useState('all')
+  const [selectedSlots, setSelectedSlots] = useState<string[]>([])
   const [routeLine, setRouteLine] = useState('all')
+  const [billingMode, setBillingMode] = useState<BillingModeFilter>('all')
+  const [sortBy, setSortBy] = useState<PricingSort>('default')
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null)
+
   const routePricingQuery = useQuery({
     queryKey: ['route-pricing'],
     queryFn: getRoutePricing,
     staleTime: 5 * 60 * 1000,
   })
   const routePricingData = routePricingQuery.data ?? EMPTY_ROUTE_PRICING
-  const routePricingModels = routePricingData.models
-  const modelsById = useMemo(
-    () => new Map(routePricingModels.map((model) => [model.id, model])),
-    [routePricingModels]
-  )
+  const models = routePricingData.models
 
+  const modelsById = useMemo(
+    () => new Map(models.map((model) => [model.id, model])),
+    [models]
+  )
   const categoryById = useMemo(
-    () => buildCategoryLabelMap(routePricingData.categories, t),
+    () =>
+      new Map(
+        routePricingData.categories.map((item) => [
+          item.id,
+          getCategoryLabel(item, t),
+        ])
+      ),
     [routePricingData.categories, t]
   )
-  const routeGroupOptions = useMemo(
-    () => getRouteGroupOptions(routePricingData, t),
-    [routePricingData, t]
-  )
-  const routeLineOptions = useMemo(
-    () => getRouteLineOptions(routePricingData, routeGroup),
-    [routePricingData, routeGroup]
-  )
-  const routeGroupSelectItems = useMemo(
-    () =>
-      routeGroupOptions.map((option) => ({
-        value: option.value,
-        label: getOptionLabel(option, t),
-      })),
-    [routeGroupOptions, t]
-  )
-  const routeLineSelectItems = useMemo(
-    () =>
-      routeLineOptions.map((option) => ({
-        value: option.value,
-        label: getOptionLabel(option, t),
-      })),
-    [routeLineOptions, t]
+
+  const vendorCount = useMemo(() => {
+    const vendors = new Set<string>()
+    for (const model of models) {
+      const vendor = model.vendor?.trim()
+      if (vendor) vendors.add(vendor)
+    }
+    return vendors.size
+  }, [models])
+
+  const slotOptions = useMemo<RouteSlotOption[]>(() => {
+    return routePricingData.categories
+      .filter((item) => item.route_count > 0)
+      .map((item) => ({
+        value: item.id,
+        label: getCategoryLabel(item, t),
+        icon: item.icon,
+        count: models.filter((model) =>
+          model.lines.some((line) => line.category_id === item.id)
+        ).length,
+      }))
+      .filter((item) => item.count > 0)
+  }, [models, routePricingData.categories, t])
+
+  const routeItems = useMemo(() => {
+    const items = routePricingData.routes
+      .filter(
+        (item) =>
+          selectedSlots.length === 0 || selectedSlots.includes(item.category_id)
+      )
+      .map((item) => ({ value: item.id, label: item.name }))
+    return [{ value: 'all', label: t('All routes') }, ...items]
+  }, [routePricingData.routes, selectedSlots, t])
+
+  const sortItems = useMemo(
+    () => [
+      { value: 'default', label: t('Default order') },
+      { value: 'input_asc', label: t('Input price: low to high') },
+      { value: 'output_asc', label: t('Output price: low to high') },
+      { value: 'name', label: t('Model name A-Z') },
+    ],
+    [t]
   )
 
-  const filteredModels = useMemo(
-    () =>
-      getVisibleModels(
-        routePricingModels,
-        categoryById,
-        routeGroup,
-        routeLine,
-        search
-      ),
-    [categoryById, routeGroup, routeLine, routePricingModels, search]
-  )
-  const selectedModel = selectedModelId
-    ? modelsById.get(selectedModelId)
-    : null
-  const hasRouteFilters = routeGroup !== 'all' || routeLine !== 'all'
+  const filteredModels = useMemo(() => {
+    const normalizedSearch = search.trim().toLowerCase()
+    const filtered = models.filter((model) => {
+      const hasMatchingLine = model.lines.some((line) => {
+        const matchesSlot =
+          selectedSlots.length === 0 || selectedSlots.includes(line.category_id)
+        const matchesRoute = routeLine === 'all' || line.id === routeLine
+        const matchesBillingMode =
+          billingMode === 'all' || line.billing_mode === billingMode
+        return matchesSlot && matchesRoute && matchesBillingMode
+      })
+      if (!hasMatchingLine) return false
+      if (normalizedSearch) {
+        const searchText = getModelSearchText(model, categoryById)
+        if (!searchText.includes(normalizedSearch)) return false
+      }
+      return true
+    })
+    return sortModels(filtered, sortBy)
+  }, [
+    models,
+    selectedSlots,
+    routeLine,
+    billingMode,
+    search,
+    sortBy,
+    categoryById,
+  ])
+
+  const selectedModel = selectedModelId ? modelsById.get(selectedModelId) : null
+
+  const hasActiveFilters =
+    selectedSlots.length > 0 ||
+    routeLine !== 'all' ||
+    billingMode !== 'all' ||
+    search.trim() !== ''
 
   const clearFilters = () => {
     setSearch('')
-    setRouteGroup('all')
+    setSelectedSlots([])
     setRouteLine('all')
+    setBillingMode('all')
   }
 
-  const errorMessage =
-    routePricingQuery.error instanceof Error
-      ? routePricingQuery.error.message
-      : t('Request failed')
+  const handleSlotsChange = (slots: string[]) => {
+    setSelectedSlots(slots)
+    if (routeLine === 'all') return
 
-  let pricingContent: ReactNode
+    const selectedRoute = routePricingData.routes.find(
+      (item) => item.id === routeLine
+    )
+    if (
+      !selectedRoute ||
+      (slots.length > 0 && !slots.includes(selectedRoute.category_id))
+    ) {
+      setRouteLine('all')
+    }
+  }
+
+  let content: React.ReactNode
   if (routePricingQuery.isLoading) {
-    pricingContent = <LoadingCards />
+    content = <LoadingCards />
   } else if (routePricingQuery.isError) {
-    pricingContent = (
-      <div className='flex min-h-72 flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center'>
+    const errorMessage =
+      routePricingQuery.error instanceof Error
+        ? routePricingQuery.error.message
+        : t('Request failed')
+    content = (
+      <div className='flex min-h-72 flex-col items-center justify-center rounded-xl border border-dashed p-8 text-center'>
         <Layers3 className='text-muted-foreground mb-3 size-10' />
         <h3 className='text-base font-semibold'>
           {t('Unable to load route pricing')}
@@ -343,169 +276,107 @@ export function PricingRoutePreview() {
       </div>
     )
   } else if (filteredModels.length > 0) {
-    pricingContent = (
-      <div className='flex flex-col gap-2'>
-        {filteredModels.map((filteredModel) => {
-          const model = modelsById.get(filteredModel.id) ?? filteredModel
-          return (
-            <ModelRouteListRow
-              key={model.id}
-              model={model}
-              onOpen={() => setSelectedModelId(model.id)}
-            />
-          )
-        })}
+    content = (
+      <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-3'>
+        {filteredModels.map((model) => (
+          <ModelRouteCard
+            key={model.id}
+            model={model}
+            onOpen={() => setSelectedModelId(model.id)}
+          />
+        ))}
       </div>
     )
   } else {
-    pricingContent = (
-      <div className='flex min-h-72 flex-col items-center justify-center rounded-lg border border-dashed p-8 text-center'>
+    content = (
+      <div className='flex min-h-72 flex-col items-center justify-center rounded-xl border border-dashed p-8 text-center'>
         <Layers3 className='text-muted-foreground mb-3 size-10' />
-        <h3 className='text-base font-semibold'>{t('No matching routes')}</h3>
+        <h3 className='text-base font-semibold'>{t('No matching models')}</h3>
         <p className='text-muted-foreground mt-2 max-w-sm text-sm'>
-          {t(
-            'Try clearing search terms or switching the model category filter.'
-          )}
+          {t('Try clearing the search or adjusting the filters.')}
         </p>
-        <Button
-          variant='outline'
-          size='sm'
-          onClick={clearFilters}
-          className='mt-4'
-        >
-          {t('Clear all filters')}
-        </Button>
+        {hasActiveFilters && (
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={clearFilters}
+            className='mt-4'
+          >
+            {t('Reset filters')}
+          </Button>
+        )}
       </div>
     )
   }
 
   return (
     <PublicLayout showMainContainer={false}>
-      <PageTransition className='mx-auto flex w-full max-w-[1600px] flex-col gap-6 px-3 pt-20 pb-8 sm:px-6 sm:pt-24 xl:px-8'>
-        <header className='flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between'>
-          <div className='max-w-3xl'>
-            <Badge variant='secondary' className='mb-3'>
-              {t('Route pricing')}
-            </Badge>
-            <h1 className='text-3xl leading-tight font-semibold sm:text-4xl'>
-              {t('Model route pricing')}
+      <PageTransition className='relative mx-auto w-full max-w-7xl px-3 pt-16 pb-8 sm:px-6 sm:pt-20 sm:pb-10 xl:px-8'>
+        <header className='mb-5 flex flex-col gap-4 sm:mb-6 lg:flex-row lg:items-end lg:justify-between'>
+          <div className='min-w-0'>
+            <h1 className='text-2xl font-bold tracking-tight sm:text-3xl'>
+              {t('Model Square')}
             </h1>
-            <p className='text-muted-foreground mt-3 max-w-2xl text-sm leading-relaxed sm:text-base'>
-              {t(
-                'Compare the same model across routes, billing modes, and effective prices.'
-              )}
+            <p className='text-muted-foreground mt-2 text-sm'>
+              {t('This site currently has {{count}} models enabled', {
+                count: models.length,
+              })}
+              <span className='text-muted-foreground/60'>
+                {' · '}
+                {t('{{count}} vendors', { count: vendorCount })}
+                {' · '}
+                {t('{{count}} routes', {
+                  count: routePricingData.total_routes,
+                })}
+              </span>
             </p>
           </div>
 
-          <div className='flex w-full max-w-xl flex-col gap-3'>
-            <div className='relative'>
-              <Search className='text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2' />
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                className='h-10 pl-9'
-                placeholder={t('Search model, provider, or route...')}
-                aria-label={t('Search model routes')}
-              />
-            </div>
+          <div className='relative w-full shrink-0 lg:max-w-sm'>
+            <Search className='text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2' />
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              className='h-10 pr-9 pl-9'
+              placeholder={t('Search model, provider, or route...')}
+              aria-label={t('Search model routes')}
+            />
+            {search && (
+              <button
+                type='button'
+                onClick={() => setSearch('')}
+                aria-label={t('Clear search')}
+                className='text-muted-foreground hover:text-foreground absolute top-1/2 right-3 -translate-y-1/2'
+              >
+                <X className='size-4' />
+              </button>
+            )}
           </div>
         </header>
 
-        <div className='grid gap-3 md:grid-cols-2 xl:grid-cols-4'>
-          <SummaryMetric
-            icon={<Boxes className='size-4' />}
-            label={t('Visible models')}
-            value={`${filteredModels.length} / ${routePricingModels.length}`}
-            hint={t('Pick a model first, then compare its available routes.')}
+        {!routePricingQuery.isError && (
+          <PricingFilterBar
+            slots={slotOptions}
+            selectedSlots={selectedSlots}
+            onSlotsChange={handleSlotsChange}
+            routeItems={routeItems}
+            routeLine={routeLine}
+            onRouteLineChange={setRouteLine}
+            billingMode={billingMode}
+            onBillingModeChange={setBillingMode}
+            sortItems={sortItems}
+            sortBy={sortBy}
+            onSortChange={setSortBy}
+            shownCount={filteredModels.length}
+            totalCount={models.length}
+            hasActiveFilters={hasActiveFilters}
+            onClearFilters={clearFilters}
           />
-          <SummaryMetric
-            icon={<RouteIcon className='size-4' />}
-            label={t('Route choices')}
-            value={String(routePricingData.total_routes)}
-            hint={t(
-              'Some models offer more than one route for different needs.'
-            )}
-          />
-          <SummaryMetric
-            icon={<Gauge className='size-4' />}
-            label={t('Lowest ratio')}
-            value={getLowestRatio(routePricingModels)}
-            hint={t(
-              'Lower multipliers usually mean lower estimated route prices.'
-            )}
-          />
-          <SummaryMetric
-            icon={<ShieldCheck className='size-4' />}
-            label={t('Per-request rules')}
-            value={String(routePricingData.per_request_routes)}
-            hint={t(
-              'Per-request routes show the price for each request directly.'
-            )}
-          />
-        </div>
+        )}
 
-        <section className='flex min-w-0 flex-col gap-3'>
-          <div className='bg-card flex flex-wrap items-center gap-2 rounded-lg border p-3'>
-            <Select
-              items={routeGroupSelectItems}
-              value={routeGroup}
-              onValueChange={(value) => {
-                if (value == null) return
-                setRouteGroup(value)
-                setRouteLine('all')
-              }}
-            >
-              <SelectTrigger className='max-w-full sm:w-64'>
-                <span className='text-muted-foreground shrink-0 text-xs'>
-                  {t('Model categories')}
-                </span>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {routeGroupSelectItems.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-
-            <Select
-              items={routeLineSelectItems}
-              value={routeLine}
-              onValueChange={(value) => {
-                if (value != null) setRouteLine(value)
-              }}
-            >
-              <SelectTrigger className='max-w-full sm:w-64'>
-                <span className='text-muted-foreground shrink-0 text-xs'>
-                  {t('Routes in category')}
-                </span>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectGroup>
-                  {routeLineSelectItems.map((item) => (
-                    <SelectItem key={item.value} value={item.value}>
-                      {item.label}
-                    </SelectItem>
-                  ))}
-                </SelectGroup>
-              </SelectContent>
-            </Select>
-
-            {hasRouteFilters && (
-              <Button variant='ghost' size='sm' onClick={clearFilters}>
-                {t('Reset filters')}
-              </Button>
-            )}
-          </div>
-
-          <main className='flex min-w-0 flex-col gap-4'>{pricingContent}</main>
-        </section>
+        <main className='mt-4 min-w-0'>{content}</main>
       </PageTransition>
+
       {selectedModel && (
         <RoutePricingDetailsDrawer
           model={selectedModel}

@@ -1,3 +1,13 @@
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
+import {
+  ChevronDown,
+  KeyRound,
+  Route,
+  Settings2,
+  WalletCards,
+} from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -18,21 +28,20 @@ For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useState } from 'react'
 import { useForm, type SubmitErrorHandler } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { useQuery } from '@tanstack/react-query'
-import { Link } from '@tanstack/react-router'
-import {
-  ChevronDown,
-  KeyRound,
-  Route,
-  Settings2,
-  WalletCards,
-} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { getUserModels, getUserGroups } from '@/lib/api'
-import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
-import { cn } from '@/lib/utils'
+
+import { DateTimePicker } from '@/components/datetime-picker'
+import {
+  SideDrawerSection,
+  SideDrawerSectionHeader,
+  sideDrawerContentClassName,
+  sideDrawerFooterClassName,
+  sideDrawerFormClassName,
+  sideDrawerHeaderClassName,
+  sideDrawerSwitchItemClassName,
+} from '@/components/drawer-layout'
+import { MultiSelect } from '@/components/multi-select'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -69,17 +78,11 @@ import {
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
 import { Textarea } from '@/components/ui/textarea'
-import { DateTimePicker } from '@/components/datetime-picker'
-import {
-  SideDrawerSection,
-  SideDrawerSectionHeader,
-  sideDrawerContentClassName,
-  sideDrawerFooterClassName,
-  sideDrawerFormClassName,
-  sideDrawerHeaderClassName,
-  sideDrawerSwitchItemClassName,
-} from '@/components/drawer-layout'
-import { MultiSelect } from '@/components/multi-select'
+import { getUserModels, getUserGroups } from '@/lib/api'
+import { getCurrencyDisplay, getCurrencyLabel } from '@/lib/currency'
+import { getLobeIcon } from '@/lib/lobe-icon'
+import { cn } from '@/lib/utils'
+
 import {
   createApiKey,
   updateApiKey,
@@ -124,6 +127,7 @@ type ApiKeyRouteSlotPreviewOption = {
   id: string
   code: string
   name: string
+  icon?: string
   description: string
   defaultLineId?: string
   modelNames: string[]
@@ -185,8 +189,8 @@ export function ApiKeysMutateDrawer({
       .split(',')
       .map((model) => model.trim())
       .filter(Boolean)
-  const routeSlotOptions: ApiKeyRouteSlotPreviewOption[] =
-    routeOptionSlots.map((slot) => {
+  const routeSlotOptions: ApiKeyRouteSlotPreviewOption[] = routeOptionSlots.map(
+    (slot) => {
       const routeLines = routeOptionLines
         .filter((line) => line.slot_id === slot.id)
         .map((line) => {
@@ -204,18 +208,16 @@ export function ApiKeysMutateDrawer({
             code: line.code,
             name: line.name,
             description: line.description || '',
-            billingMode:
-              (line.model_prices ?? []).some(
-                (price) =>
-                  price.enabled !== false &&
-                  price.billing_mode === 'per_request'
-              )
-                ? 'per_request'
-                : (line.model_prices ?? []).some(
-                      (price) => price.enabled !== false
-                    )
-                  ? 'custom'
-                  : 'ratio',
+            billingMode: (line.model_prices ?? []).some(
+              (price) =>
+                price.enabled !== false && price.billing_mode === 'per_request'
+            )
+              ? 'per_request'
+              : (line.model_prices ?? []).some(
+                    (price) => price.enabled !== false
+                  )
+                ? 'custom'
+                : 'ratio',
             defaultRatio: line.default_ratio,
             modelPrices: line.model_prices ?? [],
             channelModels,
@@ -237,6 +239,7 @@ export function ApiKeysMutateDrawer({
         id: String(slot.id),
         code: slot.code,
         name: slot.name,
+        icon: slot.icon,
         description: slot.description || '',
         defaultLineId: slot.default_route_line_id
           ? String(slot.default_route_line_id)
@@ -244,7 +247,8 @@ export function ApiKeysMutateDrawer({
         modelNames,
         routeLines,
       }
-    })
+    }
+  )
   const schema = getApiKeyFormSchema(t)
 
   const form = useForm<ApiKeyFormValues>({
@@ -328,9 +332,7 @@ export function ApiKeysMutateDrawer({
           triggerRefresh()
         } else {
           toast.error(
-            result.message
-              ? t(result.message)
-              : t(ERROR_MESSAGES.UPDATE_FAILED)
+            result.message ? t(result.message) : t(ERROR_MESSAGES.UPDATE_FAILED)
           )
         }
       } else {
@@ -698,6 +700,11 @@ export function ApiKeysMutateDrawer({
                           <div className='flex flex-wrap items-start justify-between gap-3'>
                             <div className='min-w-0'>
                               <div className='flex flex-wrap items-center gap-2'>
+                                {slot.icon && (
+                                  <span aria-hidden='true'>
+                                    {getLobeIcon(slot.icon, 18)}
+                                  </span>
+                                )}
                                 <span className='truncate text-sm font-medium'>
                                   {slot.name}
                                 </span>
@@ -817,7 +824,7 @@ export function ApiKeysMutateDrawer({
                 </div>
 
                 <div className='text-muted-foreground rounded-lg border border-dashed p-3 text-xs'>
-                  <div className='font-medium text-foreground'>
+                  <div className='text-foreground font-medium'>
                     {t('Current route preview')}
                   </div>
                   <div className='mt-2 grid gap-1'>
@@ -828,8 +835,15 @@ export function ApiKeysMutateDrawer({
                           key={slot.id}
                           className='grid grid-cols-[minmax(0,1fr)_auto] gap-2'
                         >
-                          <span className='truncate'>{slot.name}</span>
-                          <span className='truncate font-medium text-foreground'>
+                          <span className='flex min-w-0 items-center gap-1.5 truncate'>
+                            {slot.icon && (
+                              <span aria-hidden='true'>
+                                {getLobeIcon(slot.icon, 14)}
+                              </span>
+                            )}
+                            <span className='truncate'>{slot.name}</span>
+                          </span>
+                          <span className='text-foreground truncate font-medium'>
                             {effectiveLine?.name ?? t('No route line')}
                           </span>
                         </div>

@@ -51,6 +51,7 @@ import {
 } from '@/components/ui/select'
 import { Skeleton } from '@/components/ui/skeleton'
 import type { User } from '@/features/users/types'
+import { getLobeIcon } from '@/lib/lobe-icon'
 import { cn } from '@/lib/utils'
 
 import {
@@ -715,6 +716,11 @@ export function ApiKeysRouteSwitchDialog(
                           !selectedSlot && 'text-muted-foreground'
                         )}
                       >
+                        {selectedSlot?.icon && (
+                          <span aria-hidden='true'>
+                            {getLobeIcon(selectedSlot.icon, 16)}
+                          </span>
+                        )}
                         {selectedSlot?.name ?? t('Route slot')}
                       </span>
                     </SelectTrigger>
@@ -722,7 +728,14 @@ export function ApiKeysRouteSwitchDialog(
                       <SelectGroup>
                         {routeSlots.map((slot) => (
                           <SelectItem key={slot.id} value={String(slot.id)}>
-                            <span className='truncate'>{slot.name}</span>
+                            <span className='flex items-center gap-2 truncate'>
+                              {slot.icon && (
+                                <span aria-hidden='true'>
+                                  {getLobeIcon(slot.icon, 16)}
+                                </span>
+                              )}
+                              <span className='truncate'>{slot.name}</span>
+                            </span>
                           </SelectItem>
                         ))}
                       </SelectGroup>

@@ -101,3 +101,67 @@ func TestRoutePricingLabelsCacheReadAndWriteSeparately(t *testing.T) {
 	assert.Equal(t, "Cache Read", items[3].LabelKey)
 	assert.InDelta(t, 0.5, *items[3].Amount, 1e-9)
 }
+
+func TestRoutePricingIncludesRouteSlotIcon(t *testing.T) {
+	pricing := model.Pricing{
+		ModelName:       "gpt-5.6-sol",
+		ModelRatio:      2.5,
+		CompletionRatio: 6,
+	}
+	channel := &model.Channel{
+		Id:     10,
+		Status: common.ChannelStatusEnabled,
+		Models: pricing.ModelName,
+	}
+	line := model.RouteLine{
+		Id:      1,
+		Name:    "stable",
+		Visible: true,
+		Enabled: true,
+		Slot: &model.RouteSlot{
+			Id:      2,
+			Code:    "gpt_chat",
+			Name:    "GPT Chat",
+			Icon:    "OpenAI",
+			Enabled: true,
+		},
+		Bindings: []model.ChannelRouteBinding{
+			{Enabled: true, ChannelId: channel.Id, Channel: channel},
+		},
+	}
+
+	response := buildRoutePricingResponse([]model.Pricing{pricing}, nil, []model.RouteLine{line})
+	require.Len(t, response.Categories, 1)
+	assert.Equal(t, "OpenAI", response.Categories[0].Icon)
+}
+
+func TestRoutePricingIncludesVendorMetadata(t *testing.T) {
+	pricing := model.Pricing{
+		ModelName:       "claude-opus-4-6",
+		VendorID:        42,
+		ModelRatio:      5,
+		CompletionRatio: 5,
+	}
+	channel := &model.Channel{
+		Id:     10,
+		Status: common.ChannelStatusEnabled,
+		Models: pricing.ModelName,
+	}
+	line := model.RouteLine{
+		Id:      1,
+		Name:    "stable",
+		Visible: true,
+		Enabled: true,
+		Bindings: []model.ChannelRouteBinding{
+			{Enabled: true, ChannelId: channel.Id, Channel: channel},
+		},
+	}
+	vendors := []model.PricingVendor{
+		{ID: 42, Name: "Anthropic", Icon: "Claude.Color"},
+	}
+
+	response := buildRoutePricingResponse([]model.Pricing{pricing}, vendors, []model.RouteLine{line})
+	require.Len(t, response.Models, 1)
+	assert.Equal(t, "Anthropic", response.Models[0].Vendor)
+	assert.Equal(t, "Claude.Color", response.Models[0].Icon)
+}

@@ -29,6 +29,7 @@ export const apiKeyRouteSlotSchema = z.object({
   id: z.number(),
   code: z.string(),
   name: z.string(),
+  icon: z.string().optional(),
   description: z.string().nullish().default(''),
   default_route_line_id: z.number().nullish(),
   enabled: z.boolean().optional(),

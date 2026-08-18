@@ -47,6 +47,7 @@ export type RoutePricingLine = {
 export type RoutePricingModel = {
   id: string
   vendor?: string
+  icon?: string
   description?: string
   billing_mode?: string
   billing_expr?: string
@@ -58,6 +59,7 @@ export type RoutePricingCategory = {
   id: string
   code: string
   name?: string
+  icon?: string
   name_key?: string
   description?: string
   sort: number

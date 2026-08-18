@@ -27,6 +27,7 @@ type ApiKeyRouteSlotSummary struct {
 	Id                 int    `json:"id"`
 	Code               string `json:"code"`
 	Name               string `json:"name"`
+	Icon               string `json:"icon,omitempty"`
 	Description        string `json:"description"`
 	DefaultRouteLineId *int   `json:"default_route_line_id,omitempty"`
 }

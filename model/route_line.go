@@ -43,6 +43,7 @@ type RouteSlot struct {
 	Id                 int       `json:"id"`
 	Code               string    `json:"code" gorm:"type:varchar(64);uniqueIndex;not null"`
 	Name               string    `json:"name" gorm:"type:varchar(128);not null"`
+	Icon               string    `json:"icon,omitempty" gorm:"type:varchar(128)"`
 	Description        string    `json:"description" gorm:"type:text"`
 	DefaultRouteLineId *int      `json:"default_route_line_id,omitempty" gorm:"index"`
 	Enabled            bool      `json:"enabled"`

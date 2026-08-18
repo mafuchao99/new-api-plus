@@ -20,40 +20,10 @@ import { useTranslation } from 'react-i18next'
 
 import { Badge } from '@/components/ui/badge'
 import { DynamicPricingBreakdown } from '@/features/pricing/components/dynamic-pricing-breakdown'
-import { formatBillingCurrencyFromUSD } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 
-import type {
-  RoutePricingLine,
-  RoutePricingPriceItem,
-} from '../types'
-
-function formatPriceAmount(value?: number | null) {
-  return formatBillingCurrencyFromUSD(value, {
-    digitsLarge: 2,
-    digitsSmall: 6,
-    abbreviate: false,
-    minimumNonZero: 0.000001,
-  })
-}
-
-export function formatPriceItemValue(
-  item: RoutePricingPriceItem,
-  translate: (key: string) => string
-) {
-  if (item.amount != null) {
-    const unit = item.unit === 'request' ? translate('request') : item.unit
-    return unit
-      ? `${formatPriceAmount(item.amount)} / ${unit}`
-      : formatPriceAmount(item.amount)
-  }
-
-  if (item.text) {
-    return item.translate_text ? translate(item.text) : item.text
-  }
-
-  return '-'
-}
+import { formatPriceItemValue } from '../lib/price-format'
+import type { RoutePricingLine, RoutePricingPriceItem } from '../types'
 
 function PriceBreakdown(props: {
   items: RoutePricingPriceItem[]
@@ -183,7 +153,7 @@ export function RouteLineRow(props: { line: RoutePricingLine }) {
           )}
         </div>
 
-        <div className='rounded-md bg-muted/50 px-3 py-2 lg:min-w-[240px] lg:text-right'>
+        <div className='bg-muted/50 rounded-md px-3 py-2 lg:min-w-[240px] lg:text-right'>
           <div className='text-muted-foreground mb-1 text-xs'>
             {t('Estimated route price')}
           </div>

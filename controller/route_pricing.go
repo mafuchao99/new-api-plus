@@ -18,6 +18,7 @@ type routePricingCategoryDTO struct {
 	Id          string `json:"id"`
 	Code        string `json:"code"`
 	Name        string `json:"name"`
+	Icon        string `json:"icon,omitempty"`
 	NameKey     string `json:"name_key,omitempty"`
 	Description string `json:"description"`
 	Sort        int    `json:"sort"`
@@ -61,6 +62,7 @@ type routePricingLineDTO struct {
 type routePricingModelDTO struct {
 	Id                 string                     `json:"id"`
 	Vendor             string                     `json:"vendor"`
+	Icon               string                     `json:"icon,omitempty"`
 	Description        string                     `json:"description,omitempty"`
 	BillingMode        string                     `json:"billing_mode,omitempty"`
 	BillingExpr        string                     `json:"billing_expr,omitempty"`
@@ -89,9 +91,9 @@ func GetRoutePricing(c *gin.Context) {
 }
 
 func buildRoutePricingResponse(pricings []model.Pricing, vendors []model.PricingVendor, lines []model.RouteLine) routePricingResponseDTO {
-	vendorById := make(map[int]string, len(vendors))
+	vendorById := make(map[int]model.PricingVendor, len(vendors))
 	for _, vendor := range vendors {
-		vendorById[vendor.ID] = vendor.Name
+		vendorById[vendor.ID] = vendor
 	}
 
 	modelsByName := make(map[string]*routePricingModelDTO, len(pricings))
@@ -122,13 +124,15 @@ func buildRoutePricingResponse(pricings []model.Pricing, vendors []model.Pricing
 
 			modelDTO, ok := modelsByName[pricing.ModelName]
 			if !ok {
-				vendorName := vendorById[pricing.VendorID]
+				vendorMetadata := vendorById[pricing.VendorID]
+				vendorName := vendorMetadata.Name
 				if strings.TrimSpace(vendorName) == "" {
 					vendorName = vendorFallback
 				}
 				modelDTO = &routePricingModelDTO{
 					Id:                 pricing.ModelName,
 					Vendor:             vendorName,
+					Icon:               vendorMetadata.Icon,
 					Description:        pricing.Description,
 					BillingMode:        pricing.BillingMode,
 					BillingExpr:        pricing.BillingExpr,
@@ -245,6 +249,7 @@ func routePricingCategoryFromLine(line model.RouteLine) routePricingCategoryDTO 
 		Id:          strconv.Itoa(line.Slot.Id),
 		Code:        line.Slot.Code,
 		Name:        line.Slot.Name,
+		Icon:        line.Slot.Icon,
 		Description: line.Slot.Description,
 		Sort:        line.Slot.Sort,
 	}

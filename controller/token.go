@@ -1081,6 +1081,7 @@ func routeSlotSummary(slot model.RouteSlot) model.ApiKeyRouteSlotSummary {
 		Id:                 slot.Id,
 		Code:               slot.Code,
 		Name:               slot.Name,
+		Icon:               slot.Icon,
 		Description:        slot.Description,
 		DefaultRouteLineId: slot.DefaultRouteLineId,
 	}

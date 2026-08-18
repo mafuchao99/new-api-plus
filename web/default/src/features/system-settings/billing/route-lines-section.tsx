@@ -1,3 +1,19 @@
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import {
+  ChevronsUpDown,
+  CheckCircle2,
+  Eye,
+  EyeOff,
+  Link2,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Route,
+  Star,
+  Tags,
+  Trash2,
+} from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,26 +33,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useEffect, useMemo, useState } from 'react'
-import * as z from 'zod'
-import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQuery } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
-import {
-  ChevronsUpDown,
-  CheckCircle2,
-  Eye,
-  EyeOff,
-  Link2,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Route,
-  Star,
-  Tags,
-  Trash2,
-} from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
+import * as z from 'zod'
+
+import { ConfirmDialog } from '@/components/confirm-dialog'
+import { Dialog } from '@/components/dialog'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -80,9 +83,9 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Textarea } from '@/components/ui/textarea'
-import { ConfirmDialog } from '@/components/confirm-dialog'
-import { Dialog } from '@/components/dialog'
 import { api } from '@/lib/api'
+import { getLobeIcon } from '@/lib/lobe-icon'
+
 import { SettingsCard } from '../components/settings-card'
 
 type RouteLine = {
@@ -105,12 +108,14 @@ type RouteLineSlot = {
   id: number
   code: string
   name: string
+  icon?: string
 }
 
 type RouteSlot = {
   id: number
   code: string
   name: string
+  icon: string
   description: string
   defaultRouteLineId?: number | null
   enabled: boolean
@@ -162,6 +167,7 @@ type ApiRouteSlot = {
   id: number
   code: string
   name: string
+  icon?: string
   description: string
   default_route_line_id?: number | null
   enabled: boolean
@@ -231,6 +237,7 @@ type RouteLinePayload = {
 type RouteSlotPayload = {
   code: string
   name: string
+  icon: string
   description: string
   default_route_line_id?: number | null
   enabled: boolean
@@ -305,18 +312,18 @@ const routeLineSchema = z.object({
     .string()
     .trim()
     .max(500, 'Description must be less than 500 characters'),
-  remark: z
-    .string()
-    .trim()
-    .max(255, 'Remark must be less than 255 characters'),
+  remark: z.string().trim().max(255, 'Remark must be less than 255 characters'),
   sort: z.number().int('Sort must be an integer'),
   visible: z.boolean(),
   enabled: z.boolean(),
-  defaultRatio: z.string().trim().refine((value) => {
-    if (value === '') return true
-    const ratio = Number(value)
-    return Number.isFinite(ratio) && ratio >= 0
-  }, 'Default ratio must be greater than or equal to 0'),
+  defaultRatio: z
+    .string()
+    .trim()
+    .refine((value) => {
+      if (value === '') return true
+      const ratio = Number(value)
+      return Number.isFinite(ratio) && ratio >= 0
+    }, 'Default ratio must be greater than or equal to 0'),
 })
 
 const modelPriceSchema = z.object({
@@ -365,15 +372,13 @@ const routeSlotSchema = z.object({
     .trim()
     .min(1, 'Route slot name is required')
     .max(128, 'Route slot name must be less than 128 characters'),
+  icon: z.string().trim().max(128, 'Icon must be less than 128 characters'),
   description: z
     .string()
     .trim()
     .max(500, 'Description must be less than 500 characters'),
   defaultRouteLineId: z.string().trim(),
-  remark: z
-    .string()
-    .trim()
-    .max(255, 'Remark must be less than 255 characters'),
+  remark: z.string().trim().max(255, 'Remark must be less than 255 characters'),
   sort: z.number().int('Sort must be an integer'),
   enabled: z.boolean(),
 })
@@ -416,7 +421,10 @@ async function fetchRouteSlots(): Promise<RouteSlot[]> {
 }
 
 async function createRouteSlot(payload: RouteSlotPayload) {
-  const res = await api.post<RouteSlotResponse>('/api/route-lines/slots', payload)
+  const res = await api.post<RouteSlotResponse>(
+    '/api/route-lines/slots',
+    payload
+  )
   if (!res.data.success) {
     throw new Error(res.data.message || 'Request failed')
   }
@@ -443,15 +451,24 @@ async function createRouteLine(payload: RouteLinePayload) {
 }
 
 async function updateRouteLine(id: number, payload: RouteLinePayload) {
-  const res = await api.put<RouteLineResponse>(`/api/route-lines/${id}`, payload)
+  const res = await api.put<RouteLineResponse>(
+    `/api/route-lines/${id}`,
+    payload
+  )
   if (!res.data.success) {
     throw new Error(res.data.message || 'Request failed')
   }
   return res.data.data
 }
 
-async function saveModelPrice(routeLineId: number, payload: SaveModelPricePayload) {
-  const res = await api.post(`/api/route-lines/${routeLineId}/model-prices`, payload)
+async function saveModelPrice(
+  routeLineId: number,
+  payload: SaveModelPricePayload
+) {
+  const res = await api.post(
+    `/api/route-lines/${routeLineId}/model-prices`,
+    payload
+  )
   if (!res.data.success) {
     throw new Error(res.data.message || 'Request failed')
   }
@@ -479,7 +496,10 @@ async function deleteBinding(routeLineId: number, bindingId: number) {
 }
 
 async function saveBinding(routeLineId: number, payload: SaveBindingPayload) {
-  const res = await api.post(`/api/route-lines/${routeLineId}/bindings`, payload)
+  const res = await api.post(
+    `/api/route-lines/${routeLineId}/bindings`,
+    payload
+  )
   if (!res.data.success) {
     throw new Error(res.data.message || 'Request failed')
   }
@@ -523,7 +543,8 @@ function normalizeRouteLine(line: ApiRouteLine): RouteLine {
       id: binding.id,
       channelId: binding.channel_id,
       channelName: binding.channel?.name || `#${binding.channel_id}`,
-      channelType: binding.channel?.type_name || String(binding.channel?.type ?? ''),
+      channelType:
+        binding.channel?.type_name || String(binding.channel?.type ?? ''),
       channelModels: binding.channel?.models || '',
       description: binding.description,
       isDefault: binding.is_default ?? false,
@@ -539,6 +560,7 @@ function normalizeRouteSlot(slot: ApiRouteSlot): RouteSlot {
     id: slot.id,
     code: slot.code,
     name: slot.name,
+    icon: slot.icon ?? '',
     description: slot.description,
     defaultRouteLineId: slot.default_route_line_id,
     enabled: slot.enabled,
@@ -613,7 +635,7 @@ function BindingCountPreview(props: { bindings: RouteLineBinding[] }) {
         <Badge
           key={binding.id}
           variant='outline'
-          className='min-w-0 max-w-full gap-1 font-mono'
+          className='max-w-full min-w-0 gap-1 font-mono'
         >
           {binding.isDefault && <Star className='size-3' />}
           <span className='truncate'>{binding.channelName}</span>
@@ -643,7 +665,7 @@ function ModelPriceCountPreview(props: { modelPrices: RouteLineModelPrice[] }) {
         <Badge
           key={price.id}
           variant='outline'
-          className='min-w-0 max-w-full font-mono'
+          className='max-w-full min-w-0 font-mono'
         >
           <span className='truncate'>{price.modelName}</span>
         </Badge>
@@ -701,20 +723,22 @@ function ModelPricesPreview(props: {
           <div className='grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]'>
             <div className='min-w-0'>
               <div className='flex min-w-0 flex-wrap items-center gap-2'>
-                <span className='min-w-0 max-w-full truncate font-mono font-medium'>
+                <span className='max-w-full min-w-0 truncate font-mono font-medium'>
                   {price.modelName}
                 </span>
-                <Badge variant='outline'>{t(billingModeLabel(price.billingMode))}</Badge>
+                <Badge variant='outline'>
+                  {t(billingModeLabel(price.billingMode))}
+                </Badge>
                 {!price.enabled && (
                   <Badge variant='outline'>{t('Disabled')}</Badge>
                 )}
               </div>
-              <div className='text-muted-foreground mt-1 break-words text-xs'>
+              <div className='text-muted-foreground mt-1 text-xs break-words'>
                 {price.description || t('No description')}
               </div>
             </div>
             <div className='flex min-w-0 flex-wrap items-center justify-end gap-1 sm:min-w-fit'>
-              <Badge variant='secondary' className='min-w-0 max-w-full'>
+              <Badge variant='secondary' className='max-w-full min-w-0'>
                 <span className='truncate'>
                   {price.billingMode === 'per_request'
                     ? t('{{price}} / request', { price: priceValue(price) })
@@ -778,7 +802,7 @@ function ChannelBindingsPreview(props: {
           <div className='grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]'>
             <div className='min-w-0'>
               <div className='flex min-w-0 flex-wrap items-center gap-2'>
-                <span className='min-w-0 max-w-full truncate font-medium'>
+                <span className='max-w-full min-w-0 truncate font-medium'>
                   {binding.channelName}
                 </span>
                 {binding.isDefault && (
@@ -792,11 +816,11 @@ function ChannelBindingsPreview(props: {
                   <Badge variant='outline'>{t('Disabled')}</Badge>
                 )}
               </div>
-              <div className='text-muted-foreground mt-1 break-words text-xs'>
+              <div className='text-muted-foreground mt-1 text-xs break-words'>
                 {binding.description || t('No description')}
               </div>
               {binding.channelModels && (
-                <div className='text-muted-foreground mt-1 max-w-full break-all font-mono text-xs'>
+                <div className='text-muted-foreground mt-1 max-w-full font-mono text-xs break-all'>
                   {binding.channelModels}
                 </div>
               )}
@@ -1026,11 +1050,14 @@ export function RouteLinesSection() {
   const [editingModelPrice, setEditingModelPrice] =
     useState<RouteLineModelPrice | null>(null)
   const [bindingLine, setBindingLine] = useState<RouteLine | null>(null)
-  const [editingBinding, setEditingBinding] =
-    useState<RouteLineBinding | null>(null)
+  const [editingBinding, setEditingBinding] = useState<RouteLineBinding | null>(
+    null
+  )
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null)
   const [deletingPriceId, setDeletingPriceId] = useState<number | null>(null)
-  const [deletingBindingId, setDeletingBindingId] = useState<number | null>(null)
+  const [deletingBindingId, setDeletingBindingId] = useState<number | null>(
+    null
+  )
   const {
     data: lines = [],
     error,
@@ -1049,10 +1076,7 @@ export function RouteLinesSection() {
     queryKey: ['route-slots'],
     queryFn: fetchRouteSlots,
   })
-  const {
-    data: channels = [],
-    isLoading: isChannelsLoading,
-  } = useQuery({
+  const { data: channels = [], isLoading: isChannelsLoading } = useQuery({
     queryKey: ['route-line-channels'],
     queryFn: fetchChannels,
     enabled: bindingLine !== null,
@@ -1062,6 +1086,7 @@ export function RouteLinesSection() {
     defaultValues: {
       code: '',
       name: '',
+      icon: '',
       description: '',
       defaultRouteLineId: '',
       remark: '',
@@ -1222,7 +1247,9 @@ export function RouteLinesSection() {
       await refetch()
     },
     onError: (mutationError: Error) => {
-      toast.error(mutationError.message || t('Failed to delete channel binding'))
+      toast.error(
+        mutationError.message || t('Failed to delete channel binding')
+      )
     },
     onSettled: () => {
       setDeletingBindingId(null)
@@ -1254,6 +1281,7 @@ export function RouteLinesSection() {
       slotForm.reset({
         code: editingSlot.code,
         name: editingSlot.name,
+        icon: editingSlot.icon,
         description: editingSlot.description,
         defaultRouteLineId: editingSlot.defaultRouteLineId
           ? String(editingSlot.defaultRouteLineId)
@@ -1267,6 +1295,7 @@ export function RouteLinesSection() {
     slotForm.reset({
       code: '',
       name: '',
+      icon: '',
       description: '',
       defaultRouteLineId: '',
       remark: '',
@@ -1298,7 +1327,8 @@ export function RouteLinesSection() {
     if (editingModelPrice) {
       modelPriceForm.reset({
         modelName: editingModelPrice.modelName,
-        billingMode: editingModelPrice.billingMode as ModelPriceFormValues['billingMode'],
+        billingMode:
+          editingModelPrice.billingMode as ModelPriceFormValues['billingMode'],
         ratio: editingModelPrice.ratio ?? 1,
         perRequestPrice: editingModelPrice.perRequestPrice ?? 0,
         priceExpression: editingModelPrice.priceExpression ?? '',
@@ -1401,6 +1431,7 @@ export function RouteLinesSection() {
       payload: {
         code: values.code.trim(),
         name: values.name.trim(),
+        icon: values.icon.trim(),
         description: values.description.trim(),
         default_route_line_id: parseNullableId(values.defaultRouteLineId),
         remark: values.remark.trim(),
@@ -1650,6 +1681,31 @@ export function RouteLinesSection() {
                 </div>
                 <FormField
                   control={slotForm.control}
+                  name='icon'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Icon')}</FormLabel>
+                      <div className='flex items-center gap-2'>
+                        <div className='bg-muted flex size-9 shrink-0 items-center justify-center rounded-md'>
+                          {getLobeIcon(field.value || '?', 20)}
+                        </div>
+                        <FormControl>
+                          <Input
+                            placeholder={t('OpenAI, Anthropic, Google, etc.')}
+                            autoComplete='off'
+                            {...field}
+                          />
+                        </FormControl>
+                      </div>
+                      <FormDescription>
+                        {t('@lobehub/icons key name')}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={slotForm.control}
                   name='description'
                   render={({ field }) => (
                     <FormItem>
@@ -1704,8 +1760,12 @@ export function RouteLinesSection() {
                       </Select>
                       <FormDescription>
                         {editingSlot
-                          ? t('Keys that follow this slot use the current default line.')
-                          : t('Create the slot first, then assign lines and choose a default.')}
+                          ? t(
+                              'Keys that follow this slot use the current default line.'
+                            )
+                          : t(
+                              'Create the slot first, then assign lines and choose a default.'
+                            )}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -1838,7 +1898,9 @@ export function RouteLinesSection() {
                           />
                         </FormControl>
                         <FormDescription>
-                          {t('Used as a stable identifier for API and billing rules.')}
+                          {t(
+                            'Used as a stable identifier for API and billing rules.'
+                          )}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -1871,9 +1933,7 @@ export function RouteLinesSection() {
                         </FormControl>
                         <SelectContent alignItemWithTrigger={false}>
                           <SelectGroup>
-                            <SelectItem value='none'>
-                              {t('No slot')}
-                            </SelectItem>
+                            <SelectItem value='none'>{t('No slot')}</SelectItem>
                             {slots.map((slot) => (
                               <SelectItem key={slot.id} value={String(slot.id)}>
                                 <span className='truncate'>{slot.name}</span>
@@ -1886,7 +1946,9 @@ export function RouteLinesSection() {
                         </SelectContent>
                       </Select>
                       <FormDescription>
-                        {t('API keys can follow the default route line of this slot.')}
+                        {t(
+                          'API keys can follow the default route line of this slot.'
+                        )}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -1900,7 +1962,9 @@ export function RouteLinesSection() {
                       <FormLabel>{t('Description')}</FormLabel>
                       <FormControl>
                         <Textarea
-                          placeholder={t('Shown to admins when choosing this route line.')}
+                          placeholder={t(
+                            'Shown to admins when choosing this route line.'
+                          )}
                           rows={3}
                           {...field}
                         />
@@ -1987,7 +2051,9 @@ export function RouteLinesSection() {
                         <div className='grid gap-1'>
                           <FormLabel>{t('Enabled')}</FormLabel>
                           <FormDescription>
-                            {t('Disabled lines stay saved but cannot be selected later.')}
+                            {t(
+                              'Disabled lines stay saved but cannot be selected later.'
+                            )}
                           </FormDescription>
                         </div>
                         <FormControl>
@@ -2007,7 +2073,9 @@ export function RouteLinesSection() {
                         <div className='grid gap-1'>
                           <FormLabel>{t('Visible')}</FormLabel>
                           <FormDescription>
-                            {t('Visible lines can be shown on pricing and selection pages.')}
+                            {t(
+                              'Visible lines can be shown on pricing and selection pages.'
+                            )}
                           </FormDescription>
                         </div>
                         <FormControl>
@@ -2110,9 +2178,7 @@ export function RouteLinesSection() {
                         </FormControl>
                         <SelectContent alignItemWithTrigger={false}>
                           <SelectGroup>
-                            <SelectItem value='none'>
-                              {t('No slot')}
-                            </SelectItem>
+                            <SelectItem value='none'>{t('No slot')}</SelectItem>
                             {slots.map((slot) => (
                               <SelectItem key={slot.id} value={String(slot.id)}>
                                 <span className='truncate'>{slot.name}</span>
@@ -2125,7 +2191,9 @@ export function RouteLinesSection() {
                         </SelectContent>
                       </Select>
                       <FormDescription>
-                        {t('Moving a line out of a slot clears stale slot defaults automatically.')}
+                        {t(
+                          'Moving a line out of a slot clears stale slot defaults automatically.'
+                        )}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -2342,8 +2410,12 @@ export function RouteLinesSection() {
                         </FormControl>
                         <FormDescription>
                           {editingModelPrice
-                            ? t('Delete and recreate this price to rename the model.')
-                            : t('Submitting the same model name updates its rule.')}
+                            ? t(
+                                'Delete and recreate this price to rename the model.'
+                              )
+                            : t(
+                                'Submitting the same model name updates its rule.'
+                              )}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -2357,7 +2429,10 @@ export function RouteLinesSection() {
                         <FormLabel>{t('Billing mode')}</FormLabel>
                         <Select
                           items={[
-                            { value: 'ratio', label: t('Official price ratio') },
+                            {
+                              value: 'ratio',
+                              label: t('Official price ratio'),
+                            },
                             { value: 'per_request', label: t('Per request') },
                             { value: 'expression', label: t('Expression') },
                           ]}
@@ -2457,7 +2532,9 @@ export function RouteLinesSection() {
                           <Textarea rows={3} {...field} />
                         </FormControl>
                         <FormDescription>
-                          {t('Reserved for image size, count, quality, or other dynamic billing rules.')}
+                          {t(
+                            'Reserved for image size, count, quality, or other dynamic billing rules.'
+                          )}
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -2503,7 +2580,9 @@ export function RouteLinesSection() {
                 setEditingBinding(null)
               }
             }}
-            title={editingBinding ? t('Edit channel binding') : t('Bind channel')}
+            title={
+              editingBinding ? t('Edit channel binding') : t('Bind channel')
+            }
             description={bindingLine?.name}
             footer={
               <>
@@ -2550,7 +2629,9 @@ export function RouteLinesSection() {
                         />
                       </FormControl>
                       <FormDescription>
-                        {t('Submitting an already bound channel updates its binding.')}
+                        {t(
+                          'Submitting an already bound channel updates its binding.'
+                        )}
                       </FormDescription>
                       <FormMessage />
                     </FormItem>
@@ -2728,11 +2809,20 @@ export function RouteLinesSection() {
                   return (
                     <TableRow key={slot.id}>
                       <TableCell>
-                        <div className='flex min-w-52 flex-col gap-1'>
-                          <span className='font-medium'>{slot.name}</span>
-                          <span className='text-muted-foreground text-xs'>
-                            {slot.description || t('No description')}
-                          </span>
+                        <div className='flex min-w-52 items-center gap-2.5'>
+                          {slot.icon && (
+                            <span className='flex size-6 shrink-0 items-center justify-center'>
+                              {getLobeIcon(slot.icon, 20)}
+                            </span>
+                          )}
+                          <div className='flex min-w-0 flex-col gap-1'>
+                            <span className='truncate font-medium'>
+                              {slot.name}
+                            </span>
+                            <span className='text-muted-foreground truncate text-xs'>
+                              {slot.description || t('No description')}
+                            </span>
+                          </div>
                         </div>
                       </TableCell>
                       <TableCell className='font-mono'>{slot.code}</TableCell>

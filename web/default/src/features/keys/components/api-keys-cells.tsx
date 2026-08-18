@@ -1,3 +1,4 @@
+import { Check, Copy, Loader2 } from 'lucide-react'
 /*
 Copyright (C) 2023-2026 QuantumNous
 
@@ -17,10 +18,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { useState, useCallback } from 'react'
-import { Check, Copy, Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { copyToClipboard } from '@/lib/copy-to-clipboard'
+
+import { BadgeCell } from '@/components/data-table'
+import { StatusBadge } from '@/components/status-badge'
 import { Button } from '@/components/ui/button'
 import {
   Popover,
@@ -32,8 +34,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { BadgeCell } from '@/components/data-table'
-import { StatusBadge } from '@/components/status-badge'
+import { copyToClipboard } from '@/lib/copy-to-clipboard'
+import { getLobeIcon } from '@/lib/lobe-icon'
+
 import { type ApiKey, type ApiKeyEffectiveRouteLine } from '../types'
 import { useApiKeys } from './api-keys-provider'
 
@@ -180,7 +183,8 @@ export function RouteStrategyCell({ apiKey }: { apiKey: ApiKey }) {
   const isCustom = customCount > 0
   const customRouteItems = routeItems.filter((item) => item.is_custom)
   const firstCustomRouteName =
-    customRouteItems[0]?.route_line?.name || customRouteItems[0]?.route_slot.name
+    customRouteItems[0]?.route_line?.name ||
+    customRouteItems[0]?.route_slot.name
   const routeStrategyLabel =
     !isCustom || !firstCustomRouteName
       ? t(isCustom ? 'Custom route' : 'Follow default strategy')
@@ -209,8 +213,13 @@ export function RouteStrategyCell({ apiKey }: { apiKey: ApiKey }) {
                 key={item.route_slot.id}
                 className='grid grid-cols-[6.5rem_4rem_minmax(0,1fr)] items-start gap-2'
               >
-                <span className='text-muted-foreground truncate'>
-                  {item.route_slot.name}
+                <span className='text-muted-foreground flex min-w-0 items-center gap-1.5 truncate'>
+                  {item.route_slot.icon && (
+                    <span aria-hidden='true'>
+                      {getLobeIcon(item.route_slot.icon, 14)}
+                    </span>
+                  )}
+                  <span className='truncate'>{item.route_slot.name}</span>
                 </span>
                 <span className='text-muted-foreground'>
                   {item.is_custom ? t('Custom') : t('Default')}

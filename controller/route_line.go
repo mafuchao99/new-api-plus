@@ -37,6 +37,7 @@ type routeSlotDTO struct {
 	Id                 int    `json:"id"`
 	Code               string `json:"code"`
 	Name               string `json:"name"`
+	Icon               string `json:"icon,omitempty"`
 	Description        string `json:"description"`
 	DefaultRouteLineId *int   `json:"default_route_line_id,omitempty"`
 	Enabled            bool   `json:"enabled"`
@@ -48,6 +49,7 @@ type routeLineSlotDTO struct {
 	Id   int    `json:"id"`
 	Code string `json:"code"`
 	Name string `json:"name"`
+	Icon string `json:"icon,omitempty"`
 }
 
 type routeLineDTO struct {
@@ -69,6 +71,7 @@ type routeLineDTO struct {
 type saveRouteSlotRequest struct {
 	Code               string `json:"code"`
 	Name               string `json:"name"`
+	Icon               string `json:"icon"`
 	Description        string `json:"description"`
 	DefaultRouteLineId *int   `json:"default_route_line_id"`
 	Enabled            *bool  `json:"enabled"`
@@ -152,7 +155,8 @@ func CreateRouteSlot(c *gin.Context) {
 
 	code := strings.TrimSpace(req.Code)
 	name := strings.TrimSpace(req.Name)
-	if !validateRouteSlotBasics(c, code, name) {
+	icon := strings.TrimSpace(req.Icon)
+	if !validateRouteSlotBasics(c, code, name, icon) {
 		return
 	}
 	req.DefaultRouteLineId = normalizeOptionalPositiveId(req.DefaultRouteLineId)
@@ -168,6 +172,7 @@ func CreateRouteSlot(c *gin.Context) {
 	slot := model.RouteSlot{
 		Code:        code,
 		Name:        name,
+		Icon:        icon,
 		Description: strings.TrimSpace(req.Description),
 		Enabled:     enabled,
 		Sort:        req.Sort,
@@ -202,7 +207,8 @@ func UpdateRouteSlot(c *gin.Context) {
 
 	code := strings.TrimSpace(req.Code)
 	name := strings.TrimSpace(req.Name)
-	if !validateRouteSlotBasics(c, code, name) {
+	icon := strings.TrimSpace(req.Icon)
+	if !validateRouteSlotBasics(c, code, name, icon) {
 		return
 	}
 	req.DefaultRouteLineId = normalizeOptionalPositiveId(req.DefaultRouteLineId)
@@ -212,6 +218,7 @@ func UpdateRouteSlot(c *gin.Context) {
 
 	slot.Code = code
 	slot.Name = name
+	slot.Icon = icon
 	slot.Description = strings.TrimSpace(req.Description)
 	slot.DefaultRouteLineId = req.DefaultRouteLineId
 	slot.Sort = req.Sort
@@ -518,6 +525,7 @@ func routeLineToDTO(line model.RouteLine) routeLineDTO {
 			Id:   line.Slot.Id,
 			Code: line.Slot.Code,
 			Name: line.Slot.Name,
+			Icon: line.Slot.Icon,
 		}
 	}
 	for _, binding := range line.Bindings {
@@ -551,6 +559,7 @@ func routeSlotToDTO(slot model.RouteSlot) routeSlotDTO {
 		Id:                 slot.Id,
 		Code:               slot.Code,
 		Name:               slot.Name,
+		Icon:               slot.Icon,
 		Description:        slot.Description,
 		DefaultRouteLineId: slot.DefaultRouteLineId,
 		Enabled:            slot.Enabled,
@@ -583,13 +592,17 @@ func validateRouteLineBasics(c *gin.Context, code string, name string) bool {
 	return true
 }
 
-func validateRouteSlotBasics(c *gin.Context, code string, name string) bool {
+func validateRouteSlotBasics(c *gin.Context, code string, name string, icon string) bool {
 	if code == "" || name == "" {
 		common.ApiErrorMsg(c, "route slot code and name cannot be empty")
 		return false
 	}
 	if len(code) > 64 || len(name) > 128 {
 		common.ApiErrorMsg(c, "route slot code or name is too long")
+		return false
+	}
+	if len(icon) > 128 {
+		common.ApiErrorMsg(c, "route slot icon is too long")
 		return false
 	}
 	for _, r := range code {
