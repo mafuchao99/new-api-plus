@@ -26,6 +26,8 @@ import { cn } from '@/lib/utils'
 interface MarkdownProps {
   children: string
   className?: string
+  preserveLineBreaks?: boolean
+  size?: 'base' | 'sm'
 }
 
 const markdownOptions = {
@@ -694,20 +696,27 @@ function addExternalLinkAttributes(html: string): string {
   return template.innerHTML
 }
 
-function renderMarkdown(markdown: string): string {
-  const parsedHtml = markdownParser.parse(markdown, markdownOptions)
+function renderMarkdown(markdown: string, preserveLineBreaks = false): string {
+  const parsedHtml = markdownParser.parse(markdown, {
+    ...markdownOptions,
+    breaks: preserveLineBreaks,
+  })
   const html = DOMPurify.sanitize(parsedHtml, sanitizeOptions)
 
   return addExternalLinkAttributes(html)
 }
 
 export function Markdown(props: MarkdownProps) {
-  const html = useMemo(() => renderMarkdown(props.children), [props.children])
+  const html = useMemo(
+    () => renderMarkdown(props.children, props.preserveLineBreaks),
+    [props.children, props.preserveLineBreaks]
+  )
 
   return (
     <div
       className={cn(
-        'prose prose-sm dark:prose-invert max-w-none',
+        'prose dark:prose-invert max-w-none',
+        props.size === 'base' ? 'prose-base' : 'prose-sm',
         'prose-headings:font-semibold prose-headings:tracking-tight',
         'prose-h1:text-2xl prose-h2:text-xl prose-h3:text-lg',
         'prose-p:leading-relaxed prose-p:my-2',

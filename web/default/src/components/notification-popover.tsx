@@ -17,11 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { TFunction } from 'i18next'
-import { Bell, ChevronRight, Megaphone } from 'lucide-react'
+import { Bell, Megaphone } from 'lucide-react'
 import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
 import { AnnouncementDetailModal } from '@/components/announcement-detail-dialog'
+import { AnnouncementListItem } from '@/components/announcement-list-item'
+import { NotificationMarkdown } from '@/components/notification-markdown'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -31,7 +33,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from '@/components/ui/empty'
-import { Markdown } from '@/components/ui/markdown'
 import {
   Popover,
   PopoverContent,
@@ -42,8 +43,6 @@ import {
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { getPreviewText } from '@/features/dashboard/lib'
-import { getAnnouncementColorClass } from '@/lib/colors'
 import { formatDateTimeObject } from '@/lib/time'
 import { cn } from '@/lib/utils'
 
@@ -123,17 +122,6 @@ function getRelativeTime(publishDate: string | Date, t: TFunction): string {
   return formatDateTimeObject(pubDate)
 }
 
-function AnnouncementDot(props: { type?: string }) {
-  return (
-    <span
-      className={cn(
-        'inline-block size-2 shrink-0 rounded-full',
-        getAnnouncementColorClass(props.type)
-      )}
-    />
-  )
-}
-
 function TabUnreadBadge(props: { count: number }) {
   if (props.count <= 0) return null
 
@@ -147,7 +135,7 @@ function TabUnreadBadge(props: { count: number }) {
   )
 }
 
-function AnnouncementListItem(props: {
+function NotificationAnnouncementListItem(props: {
   item: AnnouncementItem
   isRead: boolean
   onOpen: (item: AnnouncementItem) => void
@@ -158,59 +146,18 @@ function AnnouncementListItem(props: {
     : null
   const hasValidDate = publishDate && !Number.isNaN(publishDate.getTime())
   const relativeTime = hasValidDate ? getRelativeTime(publishDate, props.t) : ''
-  const preview = getPreviewText(props.item.content || '', 96)
 
   return (
-    <button
-      type='button'
-      onClick={() => props.onOpen(props.item)}
-      className={cn(
-        'group w-full rounded-lg px-3 py-3 text-left transition-colors',
-        'hover:bg-muted/70 focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none',
-        !props.isRead && 'bg-primary/5'
-      )}
-      aria-label={props.t('Click for details')}
-    >
-      <div className='flex items-start gap-3'>
-        <span className='relative mt-1.5 flex size-2 shrink-0 items-center justify-center'>
-          {!props.isRead ? (
-            <span className='bg-primary absolute inline-flex size-2 animate-ping rounded-full opacity-60' />
-          ) : null}
-          <AnnouncementDot type={props.item.type} />
-        </span>
-        <div className='min-w-0 flex-1 space-y-1'>
-          <div className='flex min-w-0 items-start justify-between gap-3'>
-            <p
-              className={cn(
-                'line-clamp-2 text-sm leading-5',
-                props.isRead
-                  ? 'text-foreground/85'
-                  : 'font-medium text-foreground'
-              )}
-            >
-              {props.item.title || preview || props.t('Announcement Details')}
-            </p>
-            <ChevronRight className='text-muted-foreground/50 mt-0.5 size-4 shrink-0 transition-transform group-hover:translate-x-0.5' />
-          </div>
-          {preview && props.item.title ? (
-            <p className='text-muted-foreground line-clamp-1 text-xs'>
-              {preview}
-            </p>
-          ) : null}
-          <div className='flex items-center gap-2 text-xs'>
-            {relativeTime ? (
-              <time className='text-muted-foreground'>{relativeTime}</time>
-            ) : null}
-            {!props.isRead ? (
-              <span className='bg-primary size-1 rounded-full' />
-            ) : null}
-            <span className='text-muted-foreground/70 opacity-0 transition-opacity group-hover:opacity-100'>
-              {props.t('View details')}
-            </span>
-          </div>
-        </div>
-      </div>
-    </button>
+    <AnnouncementListItem
+      actionLabel={props.t('View details')}
+      content={props.item.content}
+      dateText={relativeTime}
+      fallbackTitle={props.t('Announcement Details')}
+      isRead={props.isRead}
+      onOpen={() => props.onOpen(props.item)}
+      title={props.item.title}
+      type={props.item.type}
+    />
   )
 }
 
@@ -258,7 +205,7 @@ function NoticeContent(props: {
 
   return (
     <ScrollArea className='h-[min(52vh,28rem)] pr-3'>
-      <Markdown>{props.notice}</Markdown>
+      <NotificationMarkdown>{props.notice}</NotificationMarkdown>
     </ScrollArea>
   )
 }
@@ -291,9 +238,9 @@ function AnnouncementsContent(props: {
 
   return (
     <ScrollArea className='h-[min(52vh,28rem)] pr-3'>
-      <div className='space-y-1'>
+      <div className='flex flex-col gap-2 pr-1'>
         {props.announcements.map((item, idx) => (
-          <AnnouncementListItem
+          <NotificationAnnouncementListItem
             key={item.id ?? `${item.publishDate ?? 'announcement'}-${idx}`}
             item={item}
             isRead={props.isAnnouncementRead(item)}
@@ -346,7 +293,7 @@ export function NotificationPopover(props: NotificationPopoverProps) {
         <PopoverContent
           align='end'
           sideOffset={8}
-          className='w-[min(28rem,calc(100vw-1rem))] gap-3 p-3'
+          className='w-[min(36rem,calc(100vw-1rem))] gap-4 p-4'
         >
           <PopoverHeader className='gap-1 px-1'>
             <PopoverTitle>{t('Notifications')}</PopoverTitle>

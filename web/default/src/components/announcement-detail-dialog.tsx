@@ -19,6 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 import { useTranslation } from 'react-i18next'
 
 import { Dialog } from '@/components/dialog'
+import { NotificationMarkdown } from '@/components/notification-markdown'
 import { Markdown } from '@/components/ui/markdown'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { formatDateTimeObject } from '@/lib/time'
@@ -51,14 +52,16 @@ export function AnnouncementDetailModal(props: AnnouncementDetailModalProps) {
       onOpenChange={props.onOpenChange}
       title={props.announcement?.title || t('Announcement Details')}
       description={publishedText}
-      contentClassName='sm:max-w-xl'
+      contentClassName='sm:max-w-2xl'
       contentHeight='auto'
       bodyClassName='space-y-4'
     >
       <ScrollArea className='max-h-[min(62vh,560px)] pr-4'>
         <div className='space-y-5'>
           {props.announcement?.content ? (
-            <Markdown>{props.announcement.content}</Markdown>
+            <NotificationMarkdown>
+              {props.announcement.content}
+            </NotificationMarkdown>
           ) : null}
           {props.announcement?.extra ? (
             <div className='border-border/70 bg-muted/30 rounded-lg border p-3'>

@@ -16,35 +16,20 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { memo, useState } from 'react'
 import { Megaphone } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
 
+import { AnnouncementListItem } from '@/components/announcement-list-item'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { useAnnouncements } from '@/features/dashboard/hooks/use-status-data'
-import { getPreviewText } from '@/features/dashboard/lib'
 import type { AnnouncementItem } from '@/features/dashboard/types'
 import { getAnnouncementKey } from '@/hooks/use-notifications'
-import { getAnnouncementColorClass } from '@/lib/colors'
 import { formatDateTimeObject } from '@/lib/time'
-import { cn } from '@/lib/utils'
 import { useNotificationStore } from '@/stores/notification-store'
 
 import { PanelWrapper } from '../ui/panel-wrapper'
 import { AnnouncementDetailModal } from './announcement-detail-dialog'
-
-const AnnouncementStatusDot = memo(function AnnouncementStatusDot(props: {
-  type?: string
-}) {
-  return (
-    <span
-      className={cn(
-        'inline-block size-2 shrink-0 rounded-full',
-        getAnnouncementColorClass(props.type)
-      )}
-    />
-  )
-})
 
 export function AnnouncementsPanel() {
   const { t } = useTranslation()
@@ -76,52 +61,25 @@ export function AnnouncementsPanel() {
       contentClassName='p-0'
     >
       <ScrollArea className='h-72'>
-        <div>
+        <div className='flex flex-col gap-2 p-3'>
           {list.map((item: AnnouncementItem, idx: number) => {
             const key = item.id ?? `announcement-${idx}`
             const isRead = isAnnouncementRead(getAnnouncementKey(item))
             return (
-              <button
+              <AnnouncementListItem
                 key={key}
-                type='button'
-                onClick={() => handleAnnouncementClick(item)}
-                className={cn(
-                  'group hover:bg-muted/40 w-full px-3 py-3 text-left transition-colors sm:px-5 sm:py-3.5',
-                  !isRead && 'bg-primary/5',
-                  idx < list.length - 1 && 'border-border/60 border-b'
-                )}
-              >
-                <div className='flex items-start gap-2.5'>
-                  <span className='relative mt-1.5 flex size-2 shrink-0 items-center justify-center'>
-                    {!isRead ? (
-                      <span className='bg-primary absolute inline-flex size-2 animate-ping rounded-full opacity-60' />
-                    ) : null}
-                    <AnnouncementStatusDot type={item.type} />
-                  </span>
-                  <div className='flex min-w-0 flex-1 flex-col gap-1'>
-                    <p
-                      className={cn(
-                        'line-clamp-1 text-sm',
-                        isRead
-                          ? 'text-foreground/85'
-                          : 'font-medium text-foreground'
-                      )}
-                    >
-                      {getPreviewText(item.content)}
-                    </p>
-                    <div className='flex items-center justify-between'>
-                      {item.publishDate && (
-                        <time className='text-muted-foreground/60 text-xs'>
-                          {formatDateTimeObject(new Date(item.publishDate))}
-                        </time>
-                      )}
-                      <span className='text-muted-foreground/40 text-xs opacity-0 transition-opacity group-hover:opacity-100'>
-                        {t('Click for details')}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </button>
+                actionLabel={t('Click for details')}
+                content={item.content}
+                dateText={
+                  item.publishDate
+                    ? formatDateTimeObject(new Date(item.publishDate))
+                    : undefined
+                }
+                fallbackTitle={t('Announcement Details')}
+                isRead={isRead}
+                onOpen={() => handleAnnouncementClick(item)}
+                type={item.type}
+              />
             )
           })}
         </div>
