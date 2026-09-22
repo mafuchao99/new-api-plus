@@ -17,6 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import { AlertSettingsDialog } from './alert-settings-dialog'
+import { MonitorSettingsDialog } from './monitor-settings-dialog'
 import { UpstreamAccountsDeleteDialog } from './upstream-accounts-delete-dialog'
 import { UpstreamAccountsMutateDrawer } from './upstream-accounts-mutate-drawer'
 import { useUpstreamAccounts } from './upstream-accounts-provider'
@@ -34,6 +35,7 @@ export function UpstreamAccountsDialogs() {
       />
       <UpstreamAccountsDeleteDialog />
       <AlertSettingsDialog />
+      <MonitorSettingsDialog />
     </>
   )
 }

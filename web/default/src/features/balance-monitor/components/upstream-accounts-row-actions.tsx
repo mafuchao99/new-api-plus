@@ -17,8 +17,10 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 import type { Row } from '@tanstack/react-table'
-import { Edit, Loader2, RefreshCw, Trash2 } from 'lucide-react'
+import { Edit, Loader2, Mail, RefreshCw, Trash2 } from 'lucide-react'
+import { useState } from 'react'
 import { useTranslation } from 'react-i18next'
+import { toast } from 'sonner'
 
 import { DataTableRowActionMenu } from '@/components/data-table/core/row-action-menu'
 import { Button } from '@/components/ui/button'
@@ -33,6 +35,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 
+import { sendUpstreamTestEmail } from '../api'
 import type { UpstreamAccount } from '../types'
 import { useUpstreamAccounts } from './upstream-accounts-provider'
 
@@ -43,10 +46,23 @@ export function UpstreamAccountsRowActions(props: {
   const account = props.row.original
   const { setOpen, setCurrentRow, queryingIds, queryAccount } =
     useUpstreamAccounts()
+  const [isSendingTestEmail, setIsSendingTestEmail] = useState(false)
   const isQuerying = queryingIds.includes(account.id)
   const openUpdate = () => {
     setCurrentRow(account)
     setOpen('update')
+  }
+
+  const handleSendTestEmail = async () => {
+    setIsSendingTestEmail(true)
+    try {
+      const result = await sendUpstreamTestEmail(account.id)
+      if (result.success) {
+        toast.success(t('Test email sent successfully'))
+      }
+    } finally {
+      setIsSendingTestEmail(false)
+    }
   }
 
   return (
@@ -66,6 +82,23 @@ export function UpstreamAccountsRowActions(props: {
           {isQuerying ? <Loader2 className='animate-spin' /> : <RefreshCw />}
         </TooltipTrigger>
         <TooltipContent>{t('Check Balance Now')}</TooltipContent>
+      </Tooltip>
+
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              variant='ghost'
+              size='icon-sm'
+              onClick={() => void handleSendTestEmail()}
+              disabled={isSendingTestEmail}
+              aria-label={t('Send Test Email')}
+            />
+          }
+        >
+          {isSendingTestEmail ? <Loader2 className='animate-spin' /> : <Mail />}
+        </TooltipTrigger>
+        <TooltipContent>{t('Send Test Email')}</TooltipContent>
       </Tooltip>
 
       <Tooltip>

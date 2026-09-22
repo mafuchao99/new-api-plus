@@ -145,6 +145,7 @@ export const STATIC_I18N_KEYS = [
   // Balance monitor
   'New API',
   'Sub2API',
+  'DeepSeek',
   'Access Token',
   'Username + Password',
   'Not queried',

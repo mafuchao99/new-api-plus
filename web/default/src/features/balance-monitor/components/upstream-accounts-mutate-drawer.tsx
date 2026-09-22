@@ -60,6 +60,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { Switch } from '@/components/ui/switch'
+import { getCurrencyLabel } from '@/lib/currency'
 
 import {
   createUpstreamAccount,
@@ -138,6 +139,7 @@ export function UpstreamAccountsMutateDrawer(props: Props) {
   }
 
   const typeOptions = getUpstreamAccountTypeOptions(t)
+  const accountType = form.watch('type')
 
   return (
     <Sheet
@@ -241,6 +243,36 @@ export function UpstreamAccountsMutateDrawer(props: Props) {
                   </FormItem>
                 )}
               />
+
+              {accountType === 'new-api' && (
+                <FormField
+                  control={form.control}
+                  name='upstream_user_id'
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>{t('Upstream User ID')}</FormLabel>
+                      <FormControl>
+                        <Input
+                          {...field}
+                          type='number'
+                          min={1}
+                          onChange={(event) =>
+                            field.onChange(
+                              Number.parseInt(event.target.value, 10) || 0
+                            )
+                          }
+                        />
+                      </FormControl>
+                      <FormDescription>
+                        {t(
+                          'The user ID that owns the access token on the upstream panel (required by new-api style panels).'
+                        )}
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
             </SideDrawerSection>
 
             <SideDrawerSection>
@@ -277,7 +309,10 @@ export function UpstreamAccountsMutateDrawer(props: Props) {
                       />
                     </FormControl>
                     <FormDescription>
-                      {t('Alert when the balance falls below this value (USD)')}
+                      {t(
+                        'Alert when the balance falls below this value ({{currency}})',
+                        { currency: getCurrencyLabel() }
+                      )}
                     </FormDescription>
                     <FormMessage />
                   </FormItem>

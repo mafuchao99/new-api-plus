@@ -27,6 +27,8 @@ import type {
   UpstreamAccountFormData,
   UpstreamAlertSettings,
   UpstreamAlertSettingsResponse,
+  UpstreamMonitorSettings,
+  UpstreamMonitorSettingsResponse,
   UpdateBalancesResponse,
 } from './types'
 
@@ -112,6 +114,26 @@ export async function updateUpstreamAccountsBalance(
 // Get low-balance email alert settings
 export async function getUpstreamAlertSettings(): Promise<UpstreamAlertSettingsResponse> {
   const res = await api.get('/api/upstream/alert_settings')
+  return res.data
+}
+
+// Send a test email to verify the low-balance alert configuration
+export async function sendUpstreamTestEmail(id?: number): Promise<ApiResponse> {
+  const res = await api.post('/api/upstream/test_email', id ? { id } : {})
+  return res.data
+}
+
+// Get scheduled balance check settings
+export async function getUpstreamMonitorSettings(): Promise<UpstreamMonitorSettingsResponse> {
+  const res = await api.get('/api/upstream/monitor_settings')
+  return res.data
+}
+
+// Update scheduled balance check settings
+export async function updateUpstreamMonitorSettings(
+  data: Omit<UpstreamMonitorSettings, 'current_interval'>
+): Promise<UpstreamMonitorSettingsResponse> {
+  const res = await api.put('/api/upstream/monitor_settings', data)
   return res.data
 }
 

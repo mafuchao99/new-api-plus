@@ -33,14 +33,20 @@ export const upstreamAccountSchema = z.object({
   access_token: z.string(),
   username: z.string(),
   password: z.string(),
+  // new-api style upstreams need the user id that owns the access token
+  upstream_user_id: z.number(),
   low_balance_threshold: z.number(),
   enabled: z.boolean(),
   remark: z.string(),
-  // Balance snapshot written by the balance query task
-  balance: z.number(), // in USD
+  // Balance snapshot written by the balance query task.
+  // Stored as returned by the upstream panel (no currency conversion).
+  balance: z.number(),
   balance_updated_time: z.number(), // unix seconds; 0 = never queried
   query_status: z.number(), // 0: never, 1: success, 2: failed
   last_error: z.string(),
+  // unix seconds; non-zero means a low-balance alert has been sent and the
+  // balance has not recovered above the threshold yet
+  last_alert_time: z.number(),
   created_time: z.number(),
   updated_time: z.number(),
 })
@@ -104,6 +110,7 @@ export interface UpstreamAccountFormData {
   access_token: string
   username: string
   password: string
+  upstream_user_id: number
   low_balance_threshold: number
   enabled: boolean
   remark: string
@@ -117,6 +124,23 @@ export interface UpstreamAlertSettings {
 export type UpstreamAlertSettingsResponse = ApiResponse<UpstreamAlertSettings>
 
 // ============================================================================
+// Scheduled balance check settings
+// ============================================================================
+
+export interface UpstreamMonitorSettings {
+  enabled: boolean
+  peak_start_hour: number
+  peak_end_hour: number
+  peak_interval: number
+  off_peak_interval: number
+  /** Current effective interval (minutes) according to the peak/off-peak window */
+  current_interval: number
+}
+
+export type UpstreamMonitorSettingsResponse =
+  ApiResponse<UpstreamMonitorSettings>
+
+// ============================================================================
 // Dialog Types
 // ============================================================================
 
@@ -125,3 +149,4 @@ export type UpstreamAccountsDialogType =
   | 'update'
   | 'delete'
   | 'alerts'
+  | 'schedule'

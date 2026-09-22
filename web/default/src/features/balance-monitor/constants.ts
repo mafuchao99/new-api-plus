@@ -24,7 +24,11 @@ import type { StatusBadgeProps } from '@/components/status-badge'
 // Upstream Account Type Configuration
 // ============================================================================
 
-export const UPSTREAM_ACCOUNT_TYPES = ['new-api', 'sub2api'] as const
+export const UPSTREAM_ACCOUNT_TYPES = [
+  'new-api',
+  'sub2api',
+  'deepseek',
+] as const
 
 export const UPSTREAM_ACCOUNT_TYPE_META: Record<
   (typeof UPSTREAM_ACCOUNT_TYPES)[number],
@@ -32,6 +36,7 @@ export const UPSTREAM_ACCOUNT_TYPE_META: Record<
 > = {
   'new-api': { labelKey: 'New API', variant: 'info' },
   sub2api: { labelKey: 'Sub2API', variant: 'purple' },
+  deepseek: { labelKey: 'DeepSeek', variant: 'cyan' },
 }
 
 // ============================================================================

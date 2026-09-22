@@ -21,6 +21,8 @@ const (
 	SystemTaskTypeModelUpdate    = "model_update"
 	SystemTaskTypeMidjourneyPoll = "midjourney_poll"
 	SystemTaskTypeAsyncTaskPoll  = "async_task_poll"
+
+	SystemTaskTypeUpstreamBalance = "upstream_balance"
 )
 
 var ErrSystemTaskLockLost = errors.New("system task lock lost")

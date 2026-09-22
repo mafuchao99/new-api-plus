@@ -65,6 +65,7 @@ export function getUpstreamAccountFormSchema(t: TFunction) {
       access_token: z.string(),
       username: z.string(),
       password: z.string(),
+      upstream_user_id: z.number().min(0),
       low_balance_threshold: z
         .number()
         .min(0, t(ERROR_MESSAGES.THRESHOLD_INVALID)),
@@ -101,6 +102,15 @@ export function getUpstreamAccountFormSchema(t: TFunction) {
           })
         }
       }
+
+      // new-api 系面板查询余额需要令牌所属的用户 ID
+      if (values.type === 'new-api' && values.upstream_user_id <= 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['upstream_user_id'],
+          message: t('Upstream user ID is required for new-api accounts'),
+        })
+      }
     })
 }
 
@@ -112,6 +122,7 @@ export type UpstreamAccountFormValues = {
   access_token: string
   username: string
   password: string
+  upstream_user_id: number
   low_balance_threshold: number
   enabled: boolean
   remark: string
@@ -129,6 +140,7 @@ export const UPSTREAM_ACCOUNT_FORM_DEFAULT_VALUES: UpstreamAccountFormValues = {
   access_token: '',
   username: '',
   password: '',
+  upstream_user_id: 0,
   low_balance_threshold:
     UPSTREAM_ACCOUNT_VALIDATION.DEFAULT_LOW_BALANCE_THRESHOLD,
   enabled: true,
@@ -155,6 +167,7 @@ export function transformFormDataToPayload(
     access_token: usesAccessToken ? data.access_token.trim() : '',
     username: usesAccessToken ? '' : data.username.trim(),
     password: usesAccessToken ? '' : data.password,
+    upstream_user_id: data.upstream_user_id,
     low_balance_threshold: data.low_balance_threshold,
     enabled: data.enabled,
     remark: data.remark.trim(),
@@ -177,6 +190,7 @@ export function transformAccountToFormDefaults(
     access_token: account.access_token,
     username: account.username,
     password: account.password,
+    upstream_user_id: account.upstream_user_id,
     low_balance_threshold: account.low_balance_threshold,
     enabled: account.enabled,
     remark: account.remark,

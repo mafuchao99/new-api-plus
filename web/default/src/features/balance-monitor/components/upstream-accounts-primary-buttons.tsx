@@ -16,7 +16,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { BellRing, Loader2, Plus, RefreshCw } from 'lucide-react'
+import { BellRing, Clock, Loader2, Plus, RefreshCw } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
 import { Button } from '@/components/ui/button'
@@ -41,6 +41,10 @@ export function UpstreamAccountsPrimaryButtons() {
           <RefreshCw className='h-4 w-4' />
         )}
         {t('Check All Balances')}
+      </Button>
+      <Button size='sm' variant='outline' onClick={() => setOpen('schedule')}>
+        <Clock className='h-4 w-4' />
+        {t('Schedule Settings')}
       </Button>
       <Button size='sm' variant='outline' onClick={() => setOpen('alerts')}>
         <BellRing className='h-4 w-4' />

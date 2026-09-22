@@ -28,7 +28,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
-import { formatCurrencyFromUSD } from '@/lib/currency'
+import { formatLocalCurrencyAmount } from '@/lib/currency'
 import { formatTimestampToDate } from '@/lib/format'
 
 import {
@@ -147,7 +147,7 @@ export function useUpstreamAccountsColumns(): ColumnDef<UpstreamAccount>[] {
       meta: { mobileHidden: true },
       cell: ({ row }) => (
         <span className='text-muted-foreground font-mono text-sm'>
-          {formatCurrencyFromUSD(row.original.low_balance_threshold, {
+          {formatLocalCurrencyAmount(row.original.low_balance_threshold, {
             abbreviate: false,
           })}
         </span>

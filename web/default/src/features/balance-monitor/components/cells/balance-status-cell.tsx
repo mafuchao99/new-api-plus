@@ -19,7 +19,8 @@ For commercial licensing, please contact support@quantumnous.com
 import { Loader2 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
 
-import { formatCurrencyFromUSD } from '@/lib/currency'
+import { StatusBadge } from '@/components/status-badge'
+import { formatLocalCurrencyAmount } from '@/lib/currency'
 import { cn } from '@/lib/utils'
 
 import { isLowBalance, isNeverQueried } from '../../lib/utils'
@@ -45,12 +46,28 @@ export function BalanceStatusCell(props: {
   }
 
   const low = isLowBalance(props.account)
+  // 已提醒但余额尚未回升：提醒只在再次回升后才会重发
+  const alertSent = low && props.account.last_alert_time > 0
 
   return (
-    <span
-      className={cn('font-mono text-sm font-medium', low && 'text-destructive')}
-    >
-      {formatCurrencyFromUSD(props.account.balance, { abbreviate: false })}
-    </span>
+    <div className='flex items-center gap-1.5'>
+      <span
+        className={cn(
+          'font-mono text-sm font-medium',
+          low && 'text-destructive'
+        )}
+      >
+        {formatLocalCurrencyAmount(props.account.balance, {
+          abbreviate: false,
+        })}
+      </span>
+      {alertSent && (
+        <StatusBadge
+          label={t('Alert sent')}
+          variant='warning'
+          copyable={false}
+        />
+      )}
+    </div>
   )
 }

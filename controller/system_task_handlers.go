@@ -22,6 +22,7 @@ func RegisterScheduledSystemTasks() {
 	service.RegisterSystemTaskHandler(modelUpdateHandler{})
 	service.RegisterSystemTaskHandler(midjourneyPollHandler{})
 	service.RegisterSystemTaskHandler(asyncTaskPollHandler{})
+	service.RegisterSystemTaskHandler(upstreamBalanceMonitorHandler{})
 }
 
 // channelTestHandler runs the scheduled "test all channels" job. Enablement and
@@ -160,4 +161,31 @@ func finishSystemTaskHandler(task *model.SystemTask, runnerID string, status mod
 	if err := model.FinishSystemTask(task.TaskID, runnerID, status, result, errorMessage); err != nil {
 		common.SysLog(fmt.Sprintf("system task %s failed to persist result: %v", task.TaskID, err))
 	}
+}
+
+// upstreamBalanceMonitorHandler 定时查询上游账号余额（低余额邮件提醒在查询流程内触发）。
+type upstreamBalanceMonitorHandler struct{}
+
+func (upstreamBalanceMonitorHandler) Type() string { return model.SystemTaskTypeUpstreamBalance }
+
+func (upstreamBalanceMonitorHandler) Enabled() bool {
+	return operation_setting.GetUpstreamMonitorSetting().Enabled
+}
+
+// Interval 按高峰/低谷时段动态返回间隔；调度器每次轮询都会重新求值，
+// 因此修改定时设置无需重启（最迟一个轮询周期约 15 秒后生效）。
+func (upstreamBalanceMonitorHandler) Interval() time.Duration {
+	minutes := operation_setting.GetUpstreamMonitorSetting().CurrentIntervalMinutes(time.Now())
+	return time.Duration(minutes) * time.Minute
+}
+
+func (upstreamBalanceMonitorHandler) NewPayload() any { return nil }
+
+func (upstreamBalanceMonitorHandler) Run(ctx context.Context, task *model.SystemTask, runnerID string) {
+	summary, err := service.RunUpstreamBalanceMonitorTask(ctx)
+	if err != nil {
+		finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusFailed, summary, err)
+		return
+	}
+	finishSystemTaskHandler(task, runnerID, model.SystemTaskStatusSucceeded, summary, nil)
 }
