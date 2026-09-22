@@ -19,12 +19,6 @@ For commercial licensing, please contact support@quantumnous.com
 import { useTranslation } from 'react-i18next'
 
 import { SectionPageLayout } from '@/components/layout'
-import { StatusBadge } from '@/components/status-badge'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from '@/components/ui/tooltip'
 
 import { UpstreamAccountsDialogs } from './components/upstream-accounts-dialogs'
 import { UpstreamAccountsPrimaryButtons } from './components/upstream-accounts-primary-buttons'
@@ -41,23 +35,6 @@ export function BalanceMonitor() {
           {t('Balance Monitor')}
         </SectionPageLayout.Title>
         <SectionPageLayout.Actions>
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <StatusBadge
-                  label={t('Sample data')}
-                  variant='warning'
-                  copyable={false}
-                  className='cursor-help'
-                />
-              }
-            />
-            <TooltipContent className='max-w-xs'>
-              {t(
-                'This page uses sample data. The backend API is not implemented yet, so changes are lost after a refresh.'
-              )}
-            </TooltipContent>
-          </Tooltip>
           <UpstreamAccountsPrimaryButtons />
         </SectionPageLayout.Actions>
         <SectionPageLayout.Content>

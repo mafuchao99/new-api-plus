@@ -16,18 +16,8 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-// ----------------------------------------------------------------------------
-// Balance monitor API
-// ----------------------------------------------------------------------------
-//
-// The backend endpoints named in the TODO(backend) comments below do not exist
-// yet, so every function is served by the in-memory sample-data layer
-// (lib/mock-store.ts). When the backend ships:
-//   1. delete lib/mock-store.ts and lib/seed.ts
-//   2. swap each body for the request in its TODO(backend) comment
-// Nothing else in this feature needs to change.
+import { api } from '@/lib/api'
 
-import * as mockStore from './lib/mock-store'
 import type {
   ApiResponse,
   BalanceQueryResult,
@@ -40,44 +30,52 @@ import type {
   UpdateBalancesResponse,
 } from './types'
 
-// Get paginated upstream accounts
+// ============================================================================
+// Upstream Account Management
+// ============================================================================
+
+// Get paginated upstream accounts (credentials are omitted by the backend)
 export async function getUpstreamAccounts(
   params: GetUpstreamAccountsParams = {}
 ): Promise<GetUpstreamAccountsResponse> {
-  // TODO(backend): return (await api.get(`/api/upstream/?p=${p}&page_size=${page_size}`)).data
-  return mockStore.listMockAccounts(params)
+  const { p = 1, page_size = 10 } = params
+  const res = await api.get(`/api/upstream/?p=${p}&page_size=${page_size}`)
+  return res.data
 }
 
-// Search upstream accounts by keyword
+// Search upstream accounts by keyword (name / base URL / remark)
 export async function searchUpstreamAccounts(
   params: GetUpstreamAccountsParams
 ): Promise<GetUpstreamAccountsResponse> {
-  // TODO(backend): return (await api.get(`/api/upstream/search?keyword=${keyword}&p=${p}&page_size=${page_size}`)).data
-  return mockStore.listMockAccounts(params)
+  const { keyword = '', p = 1, page_size = 10 } = params
+  const res = await api.get(
+    `/api/upstream/search?keyword=${encodeURIComponent(keyword)}&p=${p}&page_size=${page_size}`
+  )
+  return res.data
 }
 
-// Get single upstream account by ID
+// Get single upstream account by ID (returns credentials for the edit form)
 export async function getUpstreamAccount(
   id: number
 ): Promise<ApiResponse<UpstreamAccount>> {
-  // TODO(backend): return (await api.get(`/api/upstream/${id}`)).data
-  return mockStore.getMockAccount(id)
+  const res = await api.get(`/api/upstream/${id}`)
+  return res.data
 }
 
 // Create upstream account
 export async function createUpstreamAccount(
   data: UpstreamAccountFormData
 ): Promise<ApiResponse<UpstreamAccount>> {
-  // TODO(backend): return (await api.post('/api/upstream/', data)).data
-  return mockStore.createMockAccount(data)
+  const res = await api.post('/api/upstream/', data)
+  return res.data
 }
 
 // Update upstream account
 export async function updateUpstreamAccount(
   data: UpstreamAccountFormData & { id: number }
 ): Promise<ApiResponse<UpstreamAccount>> {
-  // TODO(backend): return (await api.put('/api/upstream/', data)).data
-  return mockStore.updateMockAccount(data.id, data)
+  const res = await api.put('/api/upstream/', data)
+  return res.data
 }
 
 // Enable / disable an upstream account
@@ -85,42 +83,42 @@ export async function updateUpstreamAccountStatus(
   id: number,
   enabled: boolean
 ): Promise<ApiResponse<UpstreamAccount>> {
-  // TODO(backend): return (await api.put('/api/upstream/?status_only=true', { id, enabled })).data
-  return mockStore.updateMockAccountStatus(id, enabled)
+  const res = await api.put('/api/upstream/?status_only=true', { id, enabled })
+  return res.data
 }
 
 // Delete a single upstream account
 export async function deleteUpstreamAccount(id: number): Promise<ApiResponse> {
-  // TODO(backend): return (await api.delete(`/api/upstream/${id}/`)).data
-  return mockStore.deleteMockAccount(id)
+  const res = await api.delete(`/api/upstream/${id}`)
+  return res.data
 }
 
 // Query the balance of a single upstream account
 export async function updateUpstreamAccountBalance(
   id: number
 ): Promise<ApiResponse<BalanceQueryResult>> {
-  // TODO(backend): return (await api.get(`/api/upstream/update_balance/${id}`)).data
-  return mockStore.queryMockBalance(id)
+  const res = await api.get(`/api/upstream/update_balance/${id}`)
+  return res.data
 }
 
 // Query the balances of multiple upstream accounts at once
 export async function updateUpstreamAccountsBalance(
   ids: number[]
 ): Promise<UpdateBalancesResponse> {
-  // TODO(backend): return (await api.get(`/api/upstream/update_balance?ids=${ids.join(',')}`)).data
-  return mockStore.queryMockBalances(ids)
+  const res = await api.get(`/api/upstream/update_balance?ids=${ids.join(',')}`)
+  return res.data
 }
 
 // Get low-balance email alert settings
 export async function getUpstreamAlertSettings(): Promise<UpstreamAlertSettingsResponse> {
-  // TODO(backend): return (await api.get('/api/upstream/alert_settings')).data
-  return mockStore.getMockAlertSettings()
+  const res = await api.get('/api/upstream/alert_settings')
+  return res.data
 }
 
 // Update low-balance email alert settings
 export async function updateUpstreamAlertSettings(
   data: UpstreamAlertSettings
 ): Promise<UpstreamAlertSettingsResponse> {
-  // TODO(backend): return (await api.put('/api/upstream/alert_settings', data)).data
-  return mockStore.updateMockAlertSettings(data)
+  const res = await api.put('/api/upstream/alert_settings', data)
+  return res.data
 }

@@ -46,6 +46,12 @@ var auditContentTemplates = map[string]string{
 	"channel.upstream_apply_all": "Applied upstream model changes to ${count} channels",
 
 	"redemption.create": "Created ${count} redemption codes named ${name} (${quota} each)",
+
+	"upstream.create":         "Created upstream account ${name} (type ${type})",
+	"upstream.update":         "Updated upstream account ${name} (ID: ${id})",
+	"upstream.delete":         "Deleted upstream account ${name} (ID: ${id})",
+	"upstream.status":         "Updated upstream account ${name} (ID: ${id}) enabled=${enabled}",
+	"upstream.alert_settings": "Updated upstream balance alert settings (email enabled=${email_enabled})",
 }
 
 // auditContentEN 按 action 模板渲染英文兜底文本；未登记的 action 退回 action 本身。

@@ -323,6 +323,20 @@ func SetApiRouter(router *gin.Engine) {
 			redemptionRoute.DELETE("/invalid", controller.DeleteInvalidRedemption)
 			redemptionRoute.DELETE("/:id", controller.DeleteRedemption)
 		}
+		upstreamRoute := apiRouter.Group("/upstream")
+		upstreamRoute.Use(middleware.AdminAuth())
+		{
+			upstreamRoute.GET("/", controller.GetAllUpstreamAccounts)
+			upstreamRoute.GET("/search", controller.SearchUpstreamAccounts)
+			upstreamRoute.GET("/update_balance", controller.UpdateUpstreamAccountsBalance)
+			upstreamRoute.GET("/update_balance/:id", controller.UpdateUpstreamAccountBalance)
+			upstreamRoute.GET("/alert_settings", controller.GetUpstreamAlertSettings)
+			upstreamRoute.PUT("/alert_settings", controller.UpdateUpstreamAlertSettings)
+			upstreamRoute.GET("/:id", controller.GetUpstreamAccount)
+			upstreamRoute.POST("/", controller.AddUpstreamAccount)
+			upstreamRoute.PUT("/", controller.UpdateUpstreamAccount)
+			upstreamRoute.DELETE("/:id", controller.DeleteUpstreamAccount)
+		}
 		logRoute := apiRouter.Group("/log")
 		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs)
 		logRoute.GET("/export", middleware.AdminAuth(), controller.ExportAllLogs)

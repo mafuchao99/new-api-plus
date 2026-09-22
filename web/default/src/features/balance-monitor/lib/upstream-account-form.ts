@@ -162,10 +162,9 @@ export function transformFormDataToPayload(
 }
 
 /**
- * Transform upstream account data to form defaults. The backend should stop
- * returning stored credentials once it is implemented; at that point the
- * drawer needs a "leave empty to keep current" placeholder instead of
- * prefilling the secret fields.
+ * Transform upstream account data to form defaults. The single-record endpoint
+ * returns stored credentials so the edit form can prefill them; list responses
+ * omit credentials (see the backend's UpstreamAccount.Clean).
  */
 export function transformAccountToFormDefaults(
   account: UpstreamAccount

@@ -72,11 +72,10 @@ export function UpstreamAccountsProvider(props: { children: React.ReactNode }) {
       const result = await updateUpstreamAccountBalance(id)
       if (result.success && result.data?.success) {
         toast.success(t(SUCCESS_MESSAGES.BALANCE_UPDATED))
-      } else {
+      } else if (result.success) {
+        // 外层请求成功但单条查询失败（上游返回错误）；外层失败由请求拦截器统一提示
         toast.error(
-          result.data?.message ||
-            result.message ||
-            t(ERROR_MESSAGES.BALANCE_QUERY_FAILED)
+          result.data?.message || t(ERROR_MESSAGES.BALANCE_QUERY_FAILED)
         )
       }
     } finally {
@@ -92,22 +91,26 @@ export function UpstreamAccountsProvider(props: { children: React.ReactNode }) {
     addQueryingIds(ids)
     try {
       const result = await updateUpstreamAccountsBalance(ids)
-      const successCount = result.data?.success_count ?? 0
-      const failedCount = result.data?.failed_count ?? 0
-      if (failedCount > 0) {
-        toast.warning(
-          t(
-            'Balance check finished: {{success}} succeeded, {{failed}} failed',
-            {
-              success: successCount,
-              failed: failedCount,
-            }
+      if (result.success) {
+        const successCount = result.data?.success_count ?? 0
+        const failedCount = result.data?.failed_count ?? 0
+        if (failedCount > 0) {
+          toast.warning(
+            t(
+              'Balance check finished: {{success}} succeeded, {{failed}} failed',
+              {
+                success: successCount,
+                failed: failedCount,
+              }
+            )
           )
-        )
-      } else {
-        toast.success(
-          t('Balance updated for {{count}} accounts', { count: successCount })
-        )
+        } else {
+          toast.success(
+            t('Balance updated for {{count}} accounts', {
+              count: successCount,
+            })
+          )
+        }
       }
     } finally {
       removeQueryingIds(ids)
