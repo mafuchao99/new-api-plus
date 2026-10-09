@@ -16,20 +16,14 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 For commercial licensing, please contact support@quantumnous.com
 */
-import { useState, useCallback, useMemo } from 'react'
 import { useQueryClient, useIsFetching } from '@tanstack/react-query'
 import { useNavigate, getRouteApi } from '@tanstack/react-router'
 import type { Table } from '@tanstack/react-table'
-import {
-  Download,
-  Eye,
-  EyeOff,
-  KeyRound,
-  Loader2,
-} from 'lucide-react'
+import { Download, Eye, EyeOff, KeyRound, Loader2, Wrench } from 'lucide-react'
+import { lazy, Suspense, useState, useCallback, useMemo } from 'react'
 import { useTranslation } from 'react-i18next'
 import { toast } from 'sonner'
-import { useIsAdmin } from '@/hooks/use-admin'
+
 import { Button } from '@/components/ui/button'
 import {
   Select,
@@ -44,6 +38,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { useIsAdmin } from '@/hooks/use-admin'
+
 import { getTokenUsageStats } from '../api'
 import { LOG_TYPE_ALL_VALUE, LOG_TYPE_FILTERS } from '../constants'
 import type { UsageLog } from '../data/schema'
@@ -57,6 +53,7 @@ import {
 import { buildSearchParams } from '../lib/filter'
 import { getDefaultTimeRange } from '../lib/utils'
 import type { CommonLogFilters } from '../types'
+import { ChannelFilterSelector } from './channel-filter-selector'
 import { CommonLogsStats } from './common-logs-stats'
 import { CompactDateTimeRangePicker } from './compact-date-time-range-picker'
 import {
@@ -64,8 +61,13 @@ import {
   LogsFilterInput,
   LogsFilterToolbar,
 } from './logs-filter-toolbar'
-import { ChannelFilterSelector } from './channel-filter-selector'
 import { useUsageLogsContext } from './usage-logs-provider'
+
+const CorrectionDialog = lazy(() =>
+  import('./dialogs/correction-dialog').then((module) => ({
+    default: module.CorrectionDialog,
+  }))
+)
 
 const route = getRouteApi('/_authenticated/usage-logs/$section')
 
@@ -137,6 +139,7 @@ export function CommonLogsFilterBar<TData>(
   const fetchingLogs = useIsFetching({ queryKey: ['logs'] })
   const [isExporting, setIsExporting] = useState(false)
   const [isExportingByKey, setIsExportingByKey] = useState(false)
+  const [correctionOpen, setCorrectionOpen] = useState(false)
   const [exportProgress, setExportProgress] = useState<{
     current: number
     total: number
@@ -400,6 +403,25 @@ export function CommonLogsFilterBar<TData>(
 
   const exportActions = (
     <>
+      {isAdmin && (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant='outline'
+                size='icon'
+                aria-label={t('Historical consumption correction')}
+                onClick={() => setCorrectionOpen(true)}
+              />
+            }
+          >
+            <Wrench />
+          </TooltipTrigger>
+          <TooltipContent>
+            {t('Historical consumption correction')}
+          </TooltipContent>
+        </Tooltip>
+      )}
       {sensitiveToggle}
       <Button
         variant='outline'
@@ -553,38 +575,48 @@ export function CommonLogsFilterBar<TData>(
   )
 
   return (
-    <LogsFilterToolbar
-      table={props.table}
-      stats={statsBar}
-      actionStart={exportActions}
-      primaryFilters={
-        <>
-          {dateRangeFilter}
-          {modelFilter}
-          {groupFilter}
-          {typeFilter}
-        </>
-      }
-      advancedFilters={advancedFilters}
-      mobilePinnedFilters={dateRangeFilter}
-      mobileFilters={
-        <>
-          {modelFilter}
-          {groupFilter}
-          {typeFilter}
-          {advancedFilters}
-        </>
-      }
-      mobileFilterCount={
-        [filters.model, filters.group, hasTypeFilter].filter(Boolean).length +
-        expandedFilterCount
-      }
-      hasAdvancedActiveFilters={hasExpandedFilters}
-      advancedFilterCount={expandedFilterCount}
-      hasActiveFilters={hasAdditionalFilters}
-      onSearch={handleApply}
-      searchLoading={fetchingLogs > 0}
-      onReset={handleReset}
-    />
+    <>
+      {isAdmin && correctionOpen && (
+        <Suspense fallback={null}>
+          <CorrectionDialog
+            open={correctionOpen}
+            onOpenChange={setCorrectionOpen}
+          />
+        </Suspense>
+      )}
+      <LogsFilterToolbar
+        table={props.table}
+        stats={statsBar}
+        actionStart={exportActions}
+        primaryFilters={
+          <>
+            {dateRangeFilter}
+            {modelFilter}
+            {groupFilter}
+            {typeFilter}
+          </>
+        }
+        advancedFilters={advancedFilters}
+        mobilePinnedFilters={dateRangeFilter}
+        mobileFilters={
+          <>
+            {modelFilter}
+            {groupFilter}
+            {typeFilter}
+            {advancedFilters}
+          </>
+        }
+        mobileFilterCount={
+          [filters.model, filters.group, hasTypeFilter].filter(Boolean).length +
+          expandedFilterCount
+        }
+        hasAdvancedActiveFilters={hasExpandedFilters}
+        advancedFilterCount={expandedFilterCount}
+        hasActiveFilters={hasAdditionalFilters}
+        onSearch={handleApply}
+        searchLoading={fetchingLogs > 0}
+        onReset={handleReset}
+      />
+    </>
   )
 }

@@ -325,7 +325,23 @@ func UpdateSystemTaskState(taskID string, lockedBy string, state any) error {
 		return result.Error
 	}
 	if result.RowsAffected == 0 {
-		return ErrSystemTaskLockLost
+		// MySQL without clientFoundRows reports zero when the state value is
+		// unchanged. Confirm the task and lease still exist before treating
+		// that as a lost lock.
+		var current SystemTask
+		if err := DB.Select("task_id").Where(
+			"task_id = ? AND status = ? AND locked_by = ?",
+			taskID, SystemTaskStatusRunning, lockedBy,
+		).First(&current).Error; err != nil {
+			return ErrSystemTaskLockLost
+		}
+		var lock SystemTaskLock
+		if err := DB.Where(
+			"task_id = ? AND locked_by = ? AND locked_until >= ?",
+			taskID, lockedBy, common.GetTimestamp(),
+		).First(&lock).Error; err != nil {
+			return ErrSystemTaskLockLost
+		}
 	}
 	return nil
 }

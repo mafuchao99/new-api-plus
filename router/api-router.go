@@ -341,6 +341,17 @@ func SetApiRouter(router *gin.Engine) {
 			upstreamRoute.DELETE("/:id", controller.DeleteUpstreamAccount)
 		}
 		logRoute := apiRouter.Group("/log")
+		correctionRoute := logRoute.Group("/corrections", middleware.AdminAuth())
+		{
+			correctionRoute.GET("/capabilities", controller.LogCorrectionCapabilities)
+			correctionRoute.GET("/snapshots", controller.GetLogCorrectionSnapshots)
+			correctionRoute.GET("/", controller.ListLogCorrections)
+			correctionRoute.POST("/", controller.CreateLogCorrection)
+			correctionRoute.GET("/:batch_id", controller.GetLogCorrection)
+			correctionRoute.GET("/:batch_id/details", controller.GetLogCorrectionDetails)
+			correctionRoute.GET("/:batch_id/export", controller.ExportLogCorrection)
+			correctionRoute.POST("/:batch_id/apply", controller.ConfirmLogCorrection)
+		}
 		logRoute.GET("/", middleware.AdminAuth(), controller.GetAllLogs)
 		logRoute.GET("/export", middleware.AdminAuth(), controller.ExportAllLogs)
 		// Legacy synchronous direct-delete route used only by the classic frontend.

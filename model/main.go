@@ -297,6 +297,8 @@ func migrateDB() error {
 		&SystemInstance{},
 		&SystemTask{},
 		&SystemTaskLock{},
+		&LogCorrectionBatch{},
+		&LogCorrectionReceipt{},
 		&RouteSlot{},
 		&RouteLine{},
 		&RouteLineModelPrice{},
@@ -306,6 +308,11 @@ func migrateDB() error {
 	)
 	if err != nil {
 		return err
+	}
+	if os.Getenv("LOG_SQL_DSN") == "" {
+		if err := DB.AutoMigrate(&LogCorrectionSnapshot{}); err != nil {
+			return err
+		}
 	}
 	if common.UsingMainDatabase(common.DatabaseTypeSQLite) {
 		if err := ensureSubscriptionPlanTableSQLite(); err != nil {
@@ -355,6 +362,8 @@ func migrateDBFast() error {
 		{&SystemInstance{}, "SystemInstance"},
 		{&SystemTask{}, "SystemTask"},
 		{&SystemTaskLock{}, "SystemTaskLock"},
+		{&LogCorrectionBatch{}, "LogCorrectionBatch"},
+		{&LogCorrectionReceipt{}, "LogCorrectionReceipt"},
 		{&RouteSlot{}, "RouteSlot"},
 		{&RouteLine{}, "RouteLine"},
 		{&RouteLineModelPrice{}, "RouteLineModelPrice"},
@@ -363,6 +372,12 @@ func migrateDBFast() error {
 		{&UpstreamAccount{}, "UpstreamAccount"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
+	if os.Getenv("LOG_SQL_DSN") == "" {
+		migrations = append(migrations, struct {
+			model interface{}
+			name  string
+		}{&LogCorrectionSnapshot{}, "LogCorrectionSnapshot"})
+	}
 	errChan := make(chan error, len(migrations))
 
 	for _, m := range migrations {
@@ -402,7 +417,7 @@ func migrateLOGDB() error {
 	if common.UsingLogDatabase(common.DatabaseTypeClickHouse) {
 		return migrateClickHouseLogDB()
 	}
-	return LOG_DB.AutoMigrate(&Log{})
+	return LOG_DB.AutoMigrate(&Log{}, &LogCorrectionSnapshot{})
 }
 
 func migrateClickHouseLogDB() error {
