@@ -304,6 +304,7 @@ func migrateDB() error {
 		&RouteLineModelPrice{},
 		&ChannelRouteBinding{},
 		&ApiKeyRouteOverride{},
+		&UserMonthlyUsage{},
 		&UpstreamAccount{},
 	)
 	if err != nil {
@@ -369,6 +370,7 @@ func migrateDBFast() error {
 		{&RouteLineModelPrice{}, "RouteLineModelPrice"},
 		{&ChannelRouteBinding{}, "ChannelRouteBinding"},
 		{&ApiKeyRouteOverride{}, "ApiKeyRouteOverride"},
+		{&UserMonthlyUsage{}, "UserMonthlyUsage"},
 		{&UpstreamAccount{}, "UpstreamAccount"},
 	}
 	// 动态计算migration数量，确保errChan缓冲区足够大
