@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/base64"
 	"testing"
 	"time"
 
@@ -36,6 +37,33 @@ func TestRecalculateLogCorrectionUsesHistoricalPricesAndTokenSemantics(t *testin
 			assert.Equal(t, write, updated["cache_creation_ratio"])
 		})
 	}
+}
+
+func TestRecalculateLogCorrectionReplaysTieredCachePriceCorrection(t *testing.T) {
+	read, write := 0.1, 2.5
+	expr := `len <= 272000 ? tier("standard", p * 2 + c * 10 + cr * 2.5) : tier("long_context", p * 4 + c * 20 + cr * 5)`
+	other := map[string]any{
+		"billing_mode":            "tiered_expr",
+		"expr_b64":                base64.StdEncoding.EncodeToString([]byte(expr)),
+		"matched_tier":            "standard",
+		"group_ratio":             1.0,
+		"cache_tokens":            4096,
+		"route_line_billing_mode": "ratio",
+		"route_line_ratio":        0.3,
+	}
+	data, err := common.Marshal(other)
+	require.NoError(t, err)
+	log := model.Log{ModelName: "gpt-6.1-sol", PromptTokens: 184351, CompletionTokens: 1732, Quota: 58211, Other: string(data)}
+	quota, correctedOther, _, err := RecalculateLogCorrection(&log, LogCorrectionParameters{CacheRead: &read, CacheWrite: &write})
+	require.NoError(t, err)
+	assert.Equal(t, 56736, quota)
+	assert.Equal(t, 1475, log.Quota-quota)
+	var corrected map[string]any
+	require.NoError(t, common.UnmarshalJsonStr(correctedOther, &corrected))
+	correctedExprBytes, err := base64.StdEncoding.DecodeString(corrected["expr_b64"].(string))
+	require.NoError(t, err)
+	assert.Contains(t, string(correctedExprBytes), "cr * 0.1")
+	assert.NotContains(t, string(correctedExprBytes), "cr * 2.5")
 }
 
 func TestRecalculateLogCorrectionRejectsUnreplayableLogs(t *testing.T) {

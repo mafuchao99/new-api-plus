@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -13,8 +14,12 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	"github.com/QuantumNous/new-api/setting/billing_setting"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/expr-lang/expr/ast"
+	"github.com/expr-lang/expr/parser"
 	"github.com/gin-gonic/gin"
 )
 
@@ -30,24 +35,26 @@ type LogCorrectionParameters struct {
 }
 
 type logCorrectionPricing struct {
-	ModelRatio      *float64 `json:"model_ratio"`
-	GroupRatio      *float64 `json:"group_ratio"`
-	CompletionRatio *float64 `json:"completion_ratio"`
-	ModelPrice      *float64 `json:"model_price"`
-	CacheTokens     *int     `json:"cache_tokens"`
-	CacheRatio      *float64 `json:"cache_ratio"`
-	WriteTokens     int      `json:"cache_creation_tokens"`
-	WriteRatio      *float64 `json:"cache_creation_ratio"`
-	Write5mTokens   int      `json:"cache_creation_tokens_5m"`
-	Write5mRatio    *float64 `json:"cache_creation_ratio_5m"`
-	Write1hTokens   int      `json:"cache_creation_tokens_1h"`
-	Write1hRatio    *float64 `json:"cache_creation_ratio_1h"`
-	Claude          bool     `json:"claude"`
-	UsageSemantic   string   `json:"usage_semantic"`
-	BillingMode     string   `json:"billing_mode"`
-	BillingSource   string   `json:"billing_source"`
-	BillingCount    *float64 `json:"billing_count"`
-	NodeName        string   `json:"node_name"`
+	ModelRatio           *float64 `json:"model_ratio"`
+	GroupRatio           *float64 `json:"group_ratio"`
+	CompletionRatio      *float64 `json:"completion_ratio"`
+	ModelPrice           *float64 `json:"model_price"`
+	CacheTokens          *int     `json:"cache_tokens"`
+	CacheRatio           *float64 `json:"cache_ratio"`
+	WriteTokens          int      `json:"cache_creation_tokens"`
+	WriteRatio           *float64 `json:"cache_creation_ratio"`
+	Write5mTokens        int      `json:"cache_creation_tokens_5m"`
+	Write5mRatio         *float64 `json:"cache_creation_ratio_5m"`
+	Write1hTokens        int      `json:"cache_creation_tokens_1h"`
+	Write1hRatio         *float64 `json:"cache_creation_ratio_1h"`
+	Claude               bool     `json:"claude"`
+	UsageSemantic        string   `json:"usage_semantic"`
+	BillingMode          string   `json:"billing_mode"`
+	BillingSource        string   `json:"billing_source"`
+	BillingCount         *float64 `json:"billing_count"`
+	NodeName             string   `json:"node_name"`
+	RouteLineBillingMode string   `json:"route_line_billing_mode"`
+	RouteLineRatio       *float64 `json:"route_line_ratio"`
 }
 
 type LogCorrectionEntry struct {
@@ -152,6 +159,225 @@ func ConfirmLogCorrection(batch *model.LogCorrectionBatch, reason string, operat
 	return nil
 }
 
+// Parse the frozen expression rather than consulting today's model settings.
+// Only token-price tables with token-based tier conditions can be corrected.
+func replaceTieredCachePrices(expression string, params LogCorrectionParameters) (string, error) {
+	version, body := billingexpr.ParseExprVersion(expression)
+	if version != 1 {
+		return "", errors.New("historical cache price expression is not replayable")
+	}
+	tree, err := parser.Parse(body)
+	if err != nil {
+		return "", errors.New("historical cache price expression is not replayable")
+	}
+	if err := correctTieredPriceTable(tree.Node, params); err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("v%d:%s", version, tree.Node.String()), nil
+}
+
+func correctTieredPriceTable(node ast.Node, params LogCorrectionParameters) error {
+	switch n := node.(type) {
+	case *ast.ConditionalNode:
+		valid := true
+		ast.Find(n.Cond, func(node ast.Node) bool {
+			switch c := node.(type) {
+			case *ast.IdentifierNode:
+				valid = valid && (c.Value == "p" || c.Value == "c" || c.Value == "len")
+			case *ast.BinaryNode:
+				valid = valid && (c.Operator == "<" || c.Operator == "<=" || c.Operator == ">" || c.Operator == ">=" ||
+					c.Operator == "==" || c.Operator == "!=" || c.Operator == "&&" || c.Operator == "||" ||
+					c.Operator == "and" || c.Operator == "or")
+			case *ast.IntegerNode, *ast.FloatNode, *ast.BoolNode:
+			default:
+				valid = false
+			}
+			return false
+		})
+		if !valid {
+			return errors.New("historical cache price expression is not replayable")
+		}
+		if err := correctTieredPriceTable(n.Exp1, params); err != nil {
+			return err
+		}
+		return correctTieredPriceTable(n.Exp2, params)
+	case *ast.CallNode:
+		callee, ok := n.Callee.(*ast.IdentifierNode)
+		if !ok || callee.Value != "tier" || len(n.Arguments) != 2 {
+			return errors.New("historical cache price expression is not replayable")
+		}
+		if _, ok := n.Arguments[0].(*ast.StringNode); !ok {
+			return errors.New("historical cache price expression is not replayable")
+		}
+		return correctTieredTokenPrices(n.Arguments[1], params, make(map[string]bool))
+	default:
+		return correctTieredTokenPrices(node, params, make(map[string]bool))
+	}
+}
+
+func correctTieredTokenPrices(node ast.Node, params LogCorrectionParameters, seen map[string]bool) error {
+	n, ok := node.(*ast.BinaryNode)
+	if !ok {
+		if zero, ok := node.(*ast.IntegerNode); ok && zero.Value == 0 {
+			return nil
+		}
+		return errors.New("historical cache price expression is not replayable")
+	}
+	if n.Operator == "+" {
+		if err := correctTieredTokenPrices(n.Left, params, seen); err != nil {
+			return err
+		}
+		return correctTieredTokenPrices(n.Right, params, seen)
+	}
+	if n.Operator != "*" {
+		return errors.New("historical cache price expression is not replayable")
+	}
+	variable, ok := n.Left.(*ast.IdentifierNode)
+	priceNode := &n.Right
+	if !ok {
+		variable, ok = n.Right.(*ast.IdentifierNode)
+		priceNode = &n.Left
+	}
+	if !ok || seen[variable.Value] {
+		return errors.New("historical cache price expression is not replayable")
+	}
+	seen[variable.Value] = true
+	var historical float64
+	switch price := (*priceNode).(type) {
+	case *ast.IntegerNode:
+		historical = float64(price.Value)
+	case *ast.FloatNode:
+		historical = price.Value
+	default:
+		return errors.New("historical cache price expression is not replayable")
+	}
+	if historical < 0 || math.IsNaN(historical) || math.IsInf(historical, 0) {
+		return errors.New("invalid historical ratio")
+	}
+	var corrected *float64
+	switch variable.Value {
+	case "p", "c":
+		return nil
+	case "cr":
+		corrected = params.CacheRead
+	case "cc":
+		corrected = params.CacheWrite
+		if params.CacheWrite5m != nil {
+			corrected = params.CacheWrite5m
+		}
+	case "cc1h":
+		corrected = params.CacheWrite1h
+	default:
+		return errors.New("historical cache price expression is not replayable")
+	}
+	if corrected == nil {
+		return errors.New("cache write TTL ratios are missing")
+	}
+	*priceNode = &ast.FloatNode{Value: *corrected}
+	return nil
+}
+
+func recalculateTieredLogCorrection(log *model.Log, params LogCorrectionParameters, pricing logCorrectionPricing, other map[string]json.RawMessage) (int, string, error) {
+	rawExpr := other["expr_b64"]
+	if len(rawExpr) == 0 {
+		return 0, "", errors.New("historical billing expression is missing")
+	}
+	var encoded string
+	if err := common.Unmarshal(rawExpr, &encoded); err != nil {
+		return 0, "", err
+	}
+	exprBytes, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil || len(exprBytes) == 0 {
+		return 0, "", errors.New("historical billing expression is invalid")
+	}
+	expr := string(exprBytes)
+	if _, err := billingexpr.CompileFromCache(expr); err != nil {
+		return 0, "", errors.New("historical billing expression is invalid")
+	}
+	correctedExpr, err := replaceTieredCachePrices(expr, params)
+	if err != nil {
+		return 0, "", err
+	}
+	if pricing.RouteLineBillingMode != "" && pricing.RouteLineBillingMode != "ratio" {
+		return 0, "", errors.New("unsupported route billing mode")
+	}
+	if pricing.RouteLineBillingMode == "ratio" && (pricing.RouteLineRatio == nil || *pricing.RouteLineRatio < 0 || math.IsNaN(*pricing.RouteLineRatio) || math.IsInf(*pricing.RouteLineRatio, 0)) {
+		return 0, "", errors.New("invalid historical route ratio")
+	}
+	effectiveGroupRatio := *pricing.GroupRatio
+	if pricing.RouteLineBillingMode == "ratio" {
+		effectiveGroupRatio *= *pricing.RouteLineRatio
+	}
+	if effectiveGroupRatio < 0 || math.IsNaN(effectiveGroupRatio) || math.IsInf(effectiveGroupRatio, 0) {
+		return 0, "", errors.New("invalid historical group ratio")
+	}
+	usage := &dto.Usage{
+		PromptTokens:     log.PromptTokens,
+		CompletionTokens: log.CompletionTokens,
+		PromptTokensDetails: dto.InputTokenDetails{
+			CachedTokens: *pricing.CacheTokens, CachedCreationTokens: pricing.WriteTokens,
+		},
+		ClaudeCacheCreation5mTokens: pricing.Write5mTokens,
+		ClaudeCacheCreation1hTokens: pricing.Write1hTokens,
+		UsageSemantic:               pricing.UsageSemantic,
+	}
+	if usage.UsageSemantic == "" {
+		usage.UsageSemantic = "openai"
+		if pricing.Claude {
+			usage.UsageSemantic = "anthropic"
+		}
+	}
+	if log.PromptTokens < 0 || log.CompletionTokens < 0 || *pricing.CacheTokens < 0 || pricing.WriteTokens < 0 || pricing.Write5mTokens < 0 || pricing.Write1hTokens < 0 {
+		return 0, "", errors.New("invalid token counts")
+	}
+	if usage.UsageSemantic != "openai" && usage.UsageSemantic != "anthropic" {
+		return 0, "", errors.New("unknown token semantics")
+	}
+	usedVars := billingexpr.UsedVars(expr)
+	tokenParams := BuildTieredTokenParams(usage, usage.UsageSemantic == "anthropic", usedVars)
+	snapshot := &billingexpr.BillingSnapshot{
+		BillingMode:  billing_setting.BillingModeTieredExpr,
+		ModelName:    log.ModelName,
+		ExprString:   expr,
+		ExprHash:     billingexpr.ExprHashString(expr),
+		GroupRatio:   effectiveGroupRatio,
+		QuotaPerUnit: common.QuotaPerUnit,
+		ExprVersion:  billingexpr.ExprVersion(expr),
+	}
+	var request billingexpr.RequestInput
+	if raw := other["request_body"]; len(raw) > 0 && string(raw) != "null" {
+		var body string
+		if err := common.Unmarshal(raw, &body); err == nil {
+			request.Body = []byte(body)
+		} else {
+			request.Body = append([]byte(nil), raw...)
+		}
+	}
+	original, err := billingexpr.ComputeTieredQuotaWithRequest(snapshot, tokenParams, request)
+	if err != nil {
+		return 0, "", fmt.Errorf("historical replay failed: %w", err)
+	}
+	if original.ActualQuotaAfterGroup != log.Quota {
+		return 0, "", fmt.Errorf("historical replay mismatch: expected %d, calculated %d", log.Quota, original.ActualQuotaAfterGroup)
+	}
+	correctedSnapshot := *snapshot
+	correctedSnapshot.ExprString = correctedExpr
+	correctedSnapshot.ExprHash = billingexpr.ExprHashString(correctedExpr)
+	corrected, err := billingexpr.ComputeTieredQuotaWithRequest(&correctedSnapshot, tokenParams, request)
+	if err != nil {
+		return 0, "", fmt.Errorf("corrected replay failed: %w", err)
+	}
+	other["expr_b64"] = mustMarshalCorrectionValue(base64.StdEncoding.EncodeToString([]byte(correctedExpr)))
+	other["matched_tier"] = mustMarshalCorrectionValue(corrected.MatchedTier)
+	encodedOther, err := common.Marshal(other)
+	return corrected.ActualQuotaAfterGroup, string(encodedOther), err
+}
+
+func mustMarshalCorrectionValue(value any) json.RawMessage {
+	data, _ := common.Marshal(value)
+	return data
+}
+
 // Replay through production settlement; unsupported modalities are rejected
 // rather than approximating surcharges or consulting today's price settings.
 func RecalculateLogCorrection(log *model.Log, params LogCorrectionParameters) (int, string, logCorrectionPricing, error) {
@@ -180,8 +406,23 @@ func RecalculateLogCorrection(log *model.Log, params LogCorrectionParameters) (i
 			return 0, "", pricing, errors.New("saturated quota cannot be replayed")
 		}
 	}
+	if pricing.BillingMode == "tiered_expr" {
+		if pricing.GroupRatio == nil || pricing.CacheTokens == nil {
+			return 0, "", pricing, errors.New("historical pricing fields are missing")
+		}
+		if params.CacheRead == nil || params.CacheWrite == nil {
+			return 0, "", pricing, errors.New("correct cache ratios are required")
+		}
+		for _, price := range []*float64{params.CacheRead, params.CacheWrite, params.CacheWrite5m, params.CacheWrite1h} {
+			if price != nil && (*price < 0 || math.IsNaN(*price) || math.IsInf(*price, 0)) {
+				return 0, "", pricing, errors.New("cache ratios must be finite and nonnegative")
+			}
+		}
+		quota, correctedOther, err := recalculateTieredLogCorrection(log, params, pricing, other)
+		return quota, correctedOther, pricing, err
+	}
 	if pricing.BillingMode != "" && pricing.BillingMode != "ratio" {
-		return 0, "", pricing, errors.New("only ordinary per-token billing is supported")
+		return 0, "", pricing, errors.New("unsupported billing mode")
 	}
 	if raw := other["route_line_billing_mode"]; len(raw) > 0 {
 		var mode string
