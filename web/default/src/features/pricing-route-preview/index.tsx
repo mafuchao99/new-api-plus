@@ -117,7 +117,7 @@ function LoadingCards() {
 export function PricingRoutePreview() {
   const { t } = useTranslation()
   const [search, setSearch] = useState('')
-  const [selectedSlots, setSelectedSlots] = useState<string[]>([])
+  const [selectedSlot, setSelectedSlot] = useState<string | null>(null)
   const [routeLine, setRouteLine] = useState('all')
   const [billingMode, setBillingMode] = useState<BillingModeFilter>('all')
   const [sortBy, setSortBy] = useState<PricingSort>('default')
@@ -173,11 +173,11 @@ export function PricingRoutePreview() {
     const items = routePricingData.routes
       .filter(
         (item) =>
-          selectedSlots.length === 0 || selectedSlots.includes(item.category_id)
+          selectedSlot === null || item.category_id === selectedSlot
       )
       .map((item) => ({ value: item.id, label: item.name }))
     return [{ value: 'all', label: t('All routes') }, ...items]
-  }, [routePricingData.routes, selectedSlots, t])
+  }, [routePricingData.routes, selectedSlot, t])
 
   const sortItems = useMemo(
     () => [
@@ -194,7 +194,7 @@ export function PricingRoutePreview() {
     const filtered = models.filter((model) => {
       const hasMatchingLine = model.lines.some((line) => {
         const matchesSlot =
-          selectedSlots.length === 0 || selectedSlots.includes(line.category_id)
+          selectedSlot === null || line.category_id === selectedSlot
         const matchesRoute = routeLine === 'all' || line.id === routeLine
         const matchesBillingMode =
           billingMode === 'all' || line.billing_mode === billingMode
@@ -210,7 +210,7 @@ export function PricingRoutePreview() {
     return sortModels(filtered, sortBy)
   }, [
     models,
-    selectedSlots,
+    selectedSlot,
     routeLine,
     billingMode,
     search,
@@ -221,20 +221,20 @@ export function PricingRoutePreview() {
   const selectedModel = selectedModelId ? modelsById.get(selectedModelId) : null
 
   const hasActiveFilters =
-    selectedSlots.length > 0 ||
+    selectedSlot !== null ||
     routeLine !== 'all' ||
     billingMode !== 'all' ||
     search.trim() !== ''
 
   const clearFilters = () => {
     setSearch('')
-    setSelectedSlots([])
+    setSelectedSlot(null)
     setRouteLine('all')
     setBillingMode('all')
   }
 
-  const handleSlotsChange = (slots: string[]) => {
-    setSelectedSlots(slots)
+  const handleSlotChange = (slot: string | null) => {
+    setSelectedSlot(slot)
     if (routeLine === 'all') return
 
     const selectedRoute = routePricingData.routes.find(
@@ -242,7 +242,7 @@ export function PricingRoutePreview() {
     )
     if (
       !selectedRoute ||
-      (slots.length > 0 && !slots.includes(selectedRoute.category_id))
+      (slot !== null && selectedRoute.category_id !== slot)
     ) {
       setRouteLine('all')
     }
@@ -357,8 +357,8 @@ export function PricingRoutePreview() {
         {!routePricingQuery.isError && (
           <PricingFilterBar
             slots={slotOptions}
-            selectedSlots={selectedSlots}
-            onSlotsChange={handleSlotsChange}
+            selectedSlot={selectedSlot}
+            onSlotChange={handleSlotChange}
             routeItems={routeItems}
             routeLine={routeLine}
             onRouteLineChange={setRouteLine}

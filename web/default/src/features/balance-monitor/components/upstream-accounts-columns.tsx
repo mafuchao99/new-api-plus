@@ -106,8 +106,18 @@ export function useUpstreamAccountsColumns(): ColumnDef<UpstreamAccount>[] {
       meta: { mobileHidden: true },
       cell: ({ row }) => (
         <div className='flex max-w-[260px] items-center gap-1'>
-          <TruncatedCell className='flex-1 font-mono text-sm'>
-            {row.original.base_url}
+          <TruncatedCell
+            className='flex-1 font-mono text-sm'
+            tooltipContent={row.original.base_url}
+          >
+            <a
+              href={row.original.base_url}
+              target='_blank'
+              rel='noopener noreferrer'
+              className='underline decoration-dotted underline-offset-2 hover:text-primary hover:decoration-solid'
+            >
+              {row.original.base_url}
+            </a>
           </TruncatedCell>
           <CopyButton
             value={row.original.base_url}

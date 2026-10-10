@@ -59,13 +59,14 @@ const BILLING_MODE_KEYS: Array<{
 function RouteSlotChip(props: {
   slot: RouteSlotOption
   active: boolean
-  onToggle: (value: string) => void
+  onSelect: (value: string) => void
 }) {
   return (
     <button
       type='button'
-      aria-pressed={props.active}
-      onClick={() => props.onToggle(props.slot.value)}
+      role='radio'
+      aria-checked={props.active}
+      onClick={() => props.onSelect(props.slot.value)}
       className={cn(
         'flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-xs transition-colors',
         props.active
@@ -93,8 +94,8 @@ function RouteSlotChip(props: {
 
 export function PricingFilterBar(props: {
   slots: RouteSlotOption[]
-  selectedSlots: string[]
-  onSlotsChange: (slots: string[]) => void
+  selectedSlot: string | null
+  onSlotChange: (slot: string | null) => void
   routeItems: FilterSelectItem[]
   routeLine: string
   onRouteLineChange: (routeLine: string) => void
@@ -110,12 +111,8 @@ export function PricingFilterBar(props: {
 }) {
   const { t } = useTranslation()
 
-  const toggleSlot = (value: string) => {
-    if (props.selectedSlots.includes(value)) {
-      props.onSlotsChange(props.selectedSlots.filter((slot) => slot !== value))
-      return
-    }
-    props.onSlotsChange([...props.selectedSlots, value])
+  const selectSlot = (value: string) => {
+    props.onSlotChange(props.selectedSlot === value ? null : value)
   }
 
   return (
@@ -123,15 +120,15 @@ export function PricingFilterBar(props: {
       {props.slots.length > 0 && (
         <div
           className='hover-scrollbar -mb-0.5 flex items-center gap-1.5 overflow-x-auto pb-0.5'
-          role='group'
+          role='radiogroup'
           aria-label={t('Route slots')}
         >
           {props.slots.map((slot) => (
             <RouteSlotChip
               key={slot.value}
               slot={slot}
-              active={props.selectedSlots.includes(slot.value)}
-              onToggle={toggleSlot}
+              active={props.selectedSlot === slot.value}
+              onSelect={selectSlot}
             />
           ))}
         </div>
