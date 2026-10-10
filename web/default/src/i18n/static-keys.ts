@@ -651,4 +651,18 @@ export const STATIC_I18N_KEYS = [
   'Failed to load',
   'Expired at',
   'Cancelled at',
+  // Consumption summary filter presets, validation, and export labels
+  'The day before yesterday',
+  'This week',
+  'Last week',
+  'Last 3 months',
+  'Last 7 days',
+  'Last 30 days',
+  'This month',
+  'Last month',
+  'Select both a start date and an end date.',
+  'The start date must not be after the end date.',
+  'Username',
+  'User ID',
+  'Model name',
 ] as const
