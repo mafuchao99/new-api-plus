@@ -36,8 +36,9 @@ import {
   Wallet,
 } from 'lucide-react'
 import { useTranslation } from 'react-i18next'
+
+import type { SidebarData } from '@/components/layout/types'
 import { ROLE } from '@/lib/roles'
-import { type SidebarData } from '@/components/layout/types'
 
 /**
  * Root navigation groups for the application sidebar.
@@ -133,6 +134,12 @@ export function useSidebarData(): SidebarData {
             title: t('Users'),
             url: '/users',
             icon: Users,
+          },
+          {
+            title: t('Consumption summary'),
+            url: '/consumption-summary',
+            icon: Coins,
+            requiredRole: ROLE.ADMIN,
           },
           {
             title: t('Redemption Codes'),

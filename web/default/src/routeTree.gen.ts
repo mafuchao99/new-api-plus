@@ -51,6 +51,7 @@ import { Route as AuthenticatedPlaygroundIndexRouteImport } from './routes/_auth
 import { Route as AuthenticatedModelsIndexRouteImport } from './routes/_authenticated/models/index'
 import { Route as AuthenticatedKeysIndexRouteImport } from './routes/_authenticated/keys/index'
 import { Route as AuthenticatedDashboardIndexRouteImport } from './routes/_authenticated/dashboard/index'
+import { Route as AuthenticatedConsumptionSummaryIndexRouteImport } from './routes/_authenticated/consumption-summary/index'
 import { Route as AuthenticatedChannelsIndexRouteImport } from './routes/_authenticated/channels/index'
 import { Route as AuthenticatedBalanceMonitorIndexRouteImport } from './routes/_authenticated/balance-monitor/index'
 import { Route as AuthenticatedUsageLogsSectionRouteImport } from './routes/_authenticated/usage-logs/$section'
@@ -294,6 +295,12 @@ const AuthenticatedDashboardIndexRoute =
     path: '/dashboard/',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedConsumptionSummaryIndexRoute =
+  AuthenticatedConsumptionSummaryIndexRouteImport.update({
+    id: '/consumption-summary/',
+    path: '/consumption-summary/',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedChannelsIndexRoute =
   AuthenticatedChannelsIndexRouteImport.update({
     id: '/channels/',
@@ -460,6 +467,7 @@ export interface FileRoutesByFullPath {
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/balance-monitor/': typeof AuthenticatedBalanceMonitorIndexRoute
   '/channels/': typeof AuthenticatedChannelsIndexRoute
+  '/consumption-summary/': typeof AuthenticatedConsumptionSummaryIndexRoute
   '/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/keys/': typeof AuthenticatedKeysIndexRoute
   '/models/': typeof AuthenticatedModelsIndexRoute
@@ -523,6 +531,7 @@ export interface FileRoutesByTo {
   '/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/balance-monitor': typeof AuthenticatedBalanceMonitorIndexRoute
   '/channels': typeof AuthenticatedChannelsIndexRoute
+  '/consumption-summary': typeof AuthenticatedConsumptionSummaryIndexRoute
   '/dashboard': typeof AuthenticatedDashboardIndexRoute
   '/keys': typeof AuthenticatedKeysIndexRoute
   '/models': typeof AuthenticatedModelsIndexRoute
@@ -590,6 +599,7 @@ export interface FileRoutesById {
   '/_authenticated/usage-logs/$section': typeof AuthenticatedUsageLogsSectionRoute
   '/_authenticated/balance-monitor/': typeof AuthenticatedBalanceMonitorIndexRoute
   '/_authenticated/channels/': typeof AuthenticatedChannelsIndexRoute
+  '/_authenticated/consumption-summary/': typeof AuthenticatedConsumptionSummaryIndexRoute
   '/_authenticated/dashboard/': typeof AuthenticatedDashboardIndexRoute
   '/_authenticated/keys/': typeof AuthenticatedKeysIndexRoute
   '/_authenticated/models/': typeof AuthenticatedModelsIndexRoute
@@ -656,6 +666,7 @@ export interface FileRouteTypes {
     | '/usage-logs/$section'
     | '/balance-monitor/'
     | '/channels/'
+    | '/consumption-summary/'
     | '/dashboard/'
     | '/keys/'
     | '/models/'
@@ -719,6 +730,7 @@ export interface FileRouteTypes {
     | '/usage-logs/$section'
     | '/balance-monitor'
     | '/channels'
+    | '/consumption-summary'
     | '/dashboard'
     | '/keys'
     | '/models'
@@ -785,6 +797,7 @@ export interface FileRouteTypes {
     | '/_authenticated/usage-logs/$section'
     | '/_authenticated/balance-monitor/'
     | '/_authenticated/channels/'
+    | '/_authenticated/consumption-summary/'
     | '/_authenticated/dashboard/'
     | '/_authenticated/keys/'
     | '/_authenticated/models/'
@@ -1135,6 +1148,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/consumption-summary/': {
+      id: '/_authenticated/consumption-summary/'
+      path: '/consumption-summary'
+      fullPath: '/consumption-summary/'
+      preLoaderRoute: typeof AuthenticatedConsumptionSummaryIndexRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/channels/': {
       id: '/_authenticated/channels/'
       path: '/channels'
@@ -1385,6 +1405,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedUsageLogsSectionRoute: typeof AuthenticatedUsageLogsSectionRoute
   AuthenticatedBalanceMonitorIndexRoute: typeof AuthenticatedBalanceMonitorIndexRoute
   AuthenticatedChannelsIndexRoute: typeof AuthenticatedChannelsIndexRoute
+  AuthenticatedConsumptionSummaryIndexRoute: typeof AuthenticatedConsumptionSummaryIndexRoute
   AuthenticatedDashboardIndexRoute: typeof AuthenticatedDashboardIndexRoute
   AuthenticatedKeysIndexRoute: typeof AuthenticatedKeysIndexRoute
   AuthenticatedModelsIndexRoute: typeof AuthenticatedModelsIndexRoute
@@ -1409,6 +1430,8 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedUsageLogsSectionRoute: AuthenticatedUsageLogsSectionRoute,
   AuthenticatedBalanceMonitorIndexRoute: AuthenticatedBalanceMonitorIndexRoute,
   AuthenticatedChannelsIndexRoute: AuthenticatedChannelsIndexRoute,
+  AuthenticatedConsumptionSummaryIndexRoute:
+    AuthenticatedConsumptionSummaryIndexRoute,
   AuthenticatedDashboardIndexRoute: AuthenticatedDashboardIndexRoute,
   AuthenticatedKeysIndexRoute: AuthenticatedKeysIndexRoute,
   AuthenticatedModelsIndexRoute: AuthenticatedModelsIndexRoute,
